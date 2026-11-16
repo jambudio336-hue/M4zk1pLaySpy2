@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadType</key><string>com.apple.webClip.managed</string>
+            <key>PayloadIdentifier</key><string>ai.m4zk1play.webclip</string>
+            <key>PayloadUUID</key><string>8F2C1A44-9B31-4E7D-9F01-MZK1PLAY001</string>
+            <key>PayloadVersion</key><integer>1</integer>
+            <key>Label</key><string>M4zk1pLaySpy</string>
+            <key>URL</key><string>http://127.0.0.1:8777/agent</string>
+            <key>FullScreen</key><true/>
+            <key>IsRemovable</key><true/>
+        </dict>
+    </array>
+    <key>PayloadDisplayName</key><string>M4zk1pLaySpy</string>
+    <key>PayloadIdentifier</key><string>ai.m4zk1play.profile</string>
+    <key>PayloadUUID</key><string>1B7E4C22-3A55-4D19-8C77-MZK1PLAY002</string>
+    <key>PayloadType</key><string>Configuration</string>
+    <key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>
