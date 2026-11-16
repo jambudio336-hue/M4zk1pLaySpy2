@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>M4zk1pLaySpy</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#05060a;color:#d6dbe6;font:14px/1.6 ui-monospace,Menlo,monospace;
+       padding:28px 22px 40px;min-height:100vh}
+  h1{color:#ff2d55;font-size:15px;letter-spacing:.28em}
+  p.sub{color:#6b7488;font-size:10px;letter-spacing:.2em;margin:6px 0 26px}
+  .box{background:#0b0e16;border:1px solid #1b2130;border-radius:12px;padding:16px;margin-bottom:12px}
+  .k{font-size:9px;letter-spacing:.2em;color:#6b7488}
+  .v{font-size:13px;color:#fff;margin-top:4px;word-break:break-all}
+  button{width:100%;padding:13px;border-radius:10px;border:1px solid #ff5b78;font-weight:700;
+         letter-spacing:.14em;font-size:11px;background:linear-gradient(180deg,#ff3a5e,#d40033);
+         color:#fff;margin-top:8px}
+  button.ghost{background:#0d1119;border-color:#2a3346;color:#d6dbe6}
+  #log{font-size:10.5px;color:#8fa0b8;white-space:pre-wrap;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>M4ZK1PL4Y</h1>
+<p class="sub">IOS BEACON · WEB CLIP</p>
+
+<div class="box"><div class="k">PERANGKAT</div><div class="v" id="dev">—</div></div>
+<div class="box"><div class="k">BATERAI</div><div class="v" id="bat">—</div></div>
+<div class="box"><div class="k">KOORDINAT</div><div class="v" id="loc">—</div></div>
+
+<button id="go">KIRIM DATA</button>
+<button class="ghost" id="auto">MULAI AUTO (5 MENIT)</button>
+<div id="log"></div>
+
+<script>
+const log = (m) => { document.getElementById('log').textContent = m; };
+const el = (id) => document.getElementById(id);
+
+const model = navigator.userAgent.match(/iPhone|iPad|iPod/) ? 'iPhone' : 'iOS Device';
+el('dev').textContent = model;
+el('bat').textContent = navigator.getBattery ? 'membaca…' : 'tidak didukung';
+
+async function battery() {
+  if (!navigator.getBattery) return { level: 0, charging: false };
+  const b = await navigator.getBattery();
+  el('bat').textContent = Math.round(b.level * 100) + '%' + (b.charging ? ' (cas)' : '');
+  return { level: Math.round(b.level * 100), charging: b.charging };
+}
+
+function position() {
+  return new Promise((res) => {
+    if (!navigator.geolocation) return res({});
+    navigator.geolocation.getCurrentPosition(
+      (p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      () => res({}),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  });
+}
+
+async function send() {
+  try {
+    const b = await battery();
+    const p = await position();
+    if (p.lat) el('loc').textContent = p.lat + ', ' + p.lon;
+    const r = await fetch('/api/ios/beacon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, os: 'iOS', battery: b.level, charging: b.charging, ...p })
+    });
+    const j = await r.json();
+    log('terkirim · ' + new Date().toLocaleTimeString('id-ID') + (j.id ? '\nid: ' + j.id : ''));
+  } catch (e) {
+    log('gagal: ' + e.message);
+  }
+}
+
+el('go').onclick = send;
+el('auto').onclick = () => {
+  send();
+  setInterval(send, 300000);
+  log('mode auto aktif tiap 5 menit');
+};
+send();
+</script>
+</body>
+</html>
