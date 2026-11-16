@@ -1,0 +1,5 @@
+git clone https://github.com/jambudio336-hue/M4zk1pLaySpy.git
+cd M4zk1pLaySpy
+chmod +x install.sh run.sh
+./install.sh
+./run.sh
