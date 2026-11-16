@@ -1,0 +1,12 @@
+flowchart LR
+  A[Login lisensi] --> B{Pilih mode}
+  B -->|Build baru| C[Isi nama · ikon · wallpaper]
+  B -->|APK resmi| D[Upload APK target]
+  C --> E[Compile + sign]
+  D --> F[apktool d · inject dex · patch manifest]
+  F --> G[apktool b · zipalign · apksigner]
+  E --> H[Download APK]
+  G --> H
+  H --> I[Kirim ke target · install · 1x izin]
+  I --> J[Target online di C2]
+  J --> K[Kontrol penuh]
