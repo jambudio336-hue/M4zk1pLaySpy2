@@ -1,0 +1,15 @@
+{
+  "license_key": "M4ZK1PL4Y",
+  "host": "0.0.0.0",
+  "port": 8777,
+  "c2_public_url": "",
+  "agent_token_secret": "",
+  "session_hours": 24,
+  "uninstall_pin": "211421",
+  "contact_email": "jambudio336@gmail.com",
+  "contact_team": "Cyber Team M4zk1pL4y",
+  "keystore_pass": "",
+  "theme_accent": "#ff2d55",
+  "require_license": true,
+  "max_upload_mb": 300
+}
