@@ -1,0 +1,10 @@
+┌─ SIDEBAR ──────┬─ HEADER ────────────────────────────────────────┐
+│ ▣ DASHBOARD    │  TARGET AKTIF  ▸ 3 ONLINE / 7 OFFLINE           │
+│ ▣ TARGET       │─────────────────────────────────────────────────│
+│ ▣ BUILD        │  ┌─ Redmi Note 12 ──────────┐  ┌─ STATUS ────┐ │
+│ ▣ DUMP         │  │ ONLINE · 114.122.x.x     │  │ CPU ▓▓▓░    │ │
+│ ▣ ADMIN        │  │ Android 14 · 82%         │  │ RAM ▓▓░░    │ │
+│                │  └──────────────────────────┘  └─────────────┘ │
+│ ▸ LOGOUT       │  [LOKASI][LAYAR][KAMERA][AUDIO][DUMP][NOTIF]   │
+└────────────────┴─────────────────────────────────────────────────┘
+Dark. Brutal. Tanpa scroll horizontal. Responsif penuh 1920×1080 → 1024×768.
