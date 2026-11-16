@@ -1,6 +1,7 @@
 """API kontrol remote."""
 from __future__ import annotations
 
+import asyncio
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -54,10 +55,12 @@ async def flush(target_id: str) -> dict:
 
 @router.get("/{target_id}/wait/{cid}")
 async def wait(target_id: str, cid: str, timeout: float = 25.0) -> dict:
+    """Tunggu hasil perintah tanpa memblokir event loop."""
     deadline = time.time() + min(timeout, 60.0)
     while time.time() < deadline:
-        row = db.one("SELECT status,result FROM commands WHERE id=? AND target_id=?", (cid, target_id))
+        row = db.one(
+            "SELECT status,result FROM commands WHERE id=? AND target_id=?", (cid, target_id))
         if row and row["status"] in {"done", "error", "timeout"}:
             return {"ok": row["status"] == "done", "status": row["status"], "result": row["result"]}
-        time.sleep(0.35)
+        await asyncio.sleep(0.35)
     return {"ok": False, "status": "pending", "result": None}
