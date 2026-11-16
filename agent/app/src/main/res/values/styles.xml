@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="MzkTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#05060A</item>
+        <item name="android:windowBackground">#05060A</item>
+    </style>
+    <style name="MzkLockTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">#000000</item>
+    </style>
+</resources>
