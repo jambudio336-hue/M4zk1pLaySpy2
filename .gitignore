@@ -20,10 +20,13 @@ config.json
 agent/.gradle/
 agent/app/build/
 agent/local.properties
-agent/prebuilt/*.apk
+agent/prebuilt/*
+!agent/prebuilt/.gitkeep
+!agent/prebuilt/README.md
 
-# artefak
+# artefak (kecuali prebuilt yang sengaja di-commit)
 *.apk
+!agent/prebuilt/*.apk
 *.ipa
 *.jks
 *.keystore
