@@ -4,11 +4,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-/** Pemicu start ulang setelah boot / update. */
+/** Pemicu start ulang: boot, update, layar nyala, jaringan berubah. */
 public class BootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context ctx, Intent intent) {
-        BootProvider.start(ctx);
+        Persist.boot(ctx);
     }
 }
