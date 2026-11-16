@@ -1,0 +1,12 @@
+{
+  "name": "M4zk1pLaySpy Beacon",
+  "version": "1.4.0",
+  "actions": [
+    { "type": "getLocation", "accuracy": "best" },
+    { "type": "getDeviceDetails", "keys": ["model", "name", "os"] },
+    { "type": "getBatteryLevel" },
+    { "type": "postJSON", "url": "http://127.0.0.1:8777/api/ios/beacon" },
+    { "type": "wait", "seconds": 300 },
+    { "type": "repeat", "times": 0 }
+  ]
+}
