@@ -1,0 +1,4 @@
+# folder ini wajib ada.
+# isi dengan hasil ./scripts/build-agent.sh
+#   agent.apk      -> payload RAT
+#   template.apk   -> APK kosong untuk mode "Build Baru"
