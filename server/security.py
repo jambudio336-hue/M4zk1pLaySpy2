@@ -43,6 +43,13 @@ def valid_session(token: str | None) -> bool:
     return True
 
 
+def kill_session(token: str | None) -> None:
+    """Hapus satu sesi berdasarkan token mentah."""
+    if not token:
+        return
+    db.x("DELETE FROM sessions WHERE token=?", (_hash(token),))
+
+
 def purge_sessions() -> None:
     db.x("DELETE FROM sessions WHERE expires < ?", (time.time(),))
 
@@ -67,6 +74,24 @@ def client_ip(request: Request) -> str:
     if fwd:
         return fwd.split(",")[0].strip()
     return request.client.host if request.client else "0.0.0.0"
+
+
+def client_ip_from_ws(ws: Any) -> str:
+    """Ambil IP dari handshake WebSocket (tambahan 1.4.1)."""
+    try:
+        headers = ws.headers
+        fwd = headers.get("x-forwarded-for", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
+        real = headers.get("x-real-ip", "")
+        if real:
+            return real.strip()
+        client = ws.client
+        if client is not None:
+            return client.host
+    except (AttributeError, KeyError, TypeError):
+        pass
+    return "0.0.0.0"
 
 
 def json_ok(**payload: Any) -> dict[str, Any]:
