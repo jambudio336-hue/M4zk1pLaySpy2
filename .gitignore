@@ -1,0 +1,38 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# data runtime
+data/*.db
+data/*.db-*
+data/uploads/*
+data/builds/*
+data/dumps/*
+data/keys/*
+!data/**/.keep
+config.json
+
+# android
+agent/.gradle/
+agent/app/build/
+agent/local.properties
+agent/prebuilt/*.apk
+
+# artefak
+*.apk
+*.ipa
+*.jks
+*.keystore
+*.log
+dist/
+build/
+
+# os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
