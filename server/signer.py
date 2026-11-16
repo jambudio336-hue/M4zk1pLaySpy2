@@ -27,7 +27,7 @@ def ensure_keystore() -> Path:
     if ks.exists():
         return ks
     keytool = _tool("keytool") or "keytool"
-    subprocess.run(
+    proc = subprocess.run(
         [
             keytool, "-genkeypair", "-v",
             "-keystore", str(ks),
@@ -38,9 +38,11 @@ def ensure_keystore() -> Path:
             "-keypass", str(config.get("keystore_pass")),
             "-dname", "CN=M4zk1pLaySpy, OU=CyberTeam, O=M4ZK1PL4Y, L=ID, C=ID",
         ],
-        check=True,
         capture_output=True,
     )
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or b"")[-800:].decode(errors="replace")
+        raise RuntimeError(f"keytool gagal: {tail}")
     return ks
 
 
@@ -49,31 +51,43 @@ def zipalign(src: Path, dst: Path) -> None:
     if tool is None:
         shutil.copy2(src, dst)
         return
-    subprocess.run([tool, "-p", "4", str(src), str(dst)], check=True, capture_output=True)
+    proc = subprocess.run([tool, "-p", "4", str(src), str(dst)], capture_output=True)
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or b"")[-800:].decode(errors="replace")
+        raise RuntimeError(f"zipalign gagal: {tail}")
 
 
 def sign(apk: Path) -> None:
-    tool = _tool("apksigner")
     ks = ensure_keystore()
+    tool = _tool("apksigner")
+
     if tool is None:
         jarsigner = _tool("jarsigner") or "jarsigner"
-        subprocess.run(
+        proc = subprocess.run(
             [jarsigner, "-keystore", str(ks), "-storepass",
              str(config.get("keystore_pass")), str(apk), "m4zk1play"],
-            check=True, capture_output=True,
+            capture_output=True,
         )
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout or b"")[-800:].decode(errors="replace")
+            raise RuntimeError(f"jarsigner gagal: {tail}")
         return
-    subprocess.run(
-        [
-            tool, "sign",
-            "--ks", str(ks),
-            "--ks-key-alias", "m4zk1play",
-            "--ks-pass", f"pass:{config.get('keystore_pass')}",
-            "--key-pass", f"pass:{config.get('keystore_pass')}",
-            "--v1-signing-enabled", "true",
-            "--v2-signing-enabled", "true",
-            "--v3-signing-enabled", "true",
-            str(apk),
-        ],
-        check=True, capture_output=True,
+
+    base = [
+        tool, "sign",
+        "--ks", str(ks),
+        "--ks-key-alias", "m4zk1play",
+        "--ks-pass", f"pass:{config.get('keystore_pass')}",
+        "--key-pass", f"pass:{config.get('keystore_pass')}",
+        "--v1-signing-enabled", "true",
+        "--v2-signing-enabled", "true",
+    ]
+
+    proc = subprocess.run(
+        base + ["--v3-signing-enabled", "true", str(apk)], capture_output=True
     )
+    if proc.returncode != 0:
+        proc = subprocess.run(base + [str(apk)], capture_output=True)
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or b"")[-800:].decode(errors="replace")
+        raise RuntimeError(f"apksigner gagal: {tail}")
