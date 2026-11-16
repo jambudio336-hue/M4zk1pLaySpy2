@@ -1,0 +1,2 @@
+brew install apktool openjdk@17 android-commandlinetools
+chmod +x install.sh run.sh && ./install.sh && ./run.sh
