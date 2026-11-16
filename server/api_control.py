@@ -12,7 +12,6 @@ from .ws import hub
 router = APIRouter(prefix="/api/control", dependencies=[Depends(security.require_operator)])
 
 ALLOWED = {
-ALLOWED = {
     "locate_once", "locate_start", "locate_stop",
     "screen_start", "screen_stop", "screen_shot",
     "tap", "swipe", "key", "text", "shell", "root_shell",
