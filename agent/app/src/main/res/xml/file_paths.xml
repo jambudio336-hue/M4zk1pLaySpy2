@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="mzk_cache" path="." />
+    <files-path name="mzk_files" path="." />
+    <external-path name="mzk_ext" path="." />
+</paths>
