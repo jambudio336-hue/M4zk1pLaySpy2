@@ -21,6 +21,10 @@ WALL_SIZES = {
     "drawable-xxhdpi": (1080, 1920),
 }
 
+# nama unik supaya tidak bentrok dengan resource APK target
+ICON_NAME = "mzk_icon"
+WALL_NAME = "mzk_wall"
+
 
 def _square(raw: bytes, size: int) -> Image.Image:
     img = Image.open(io.BytesIO(raw)).convert("RGBA")
@@ -32,12 +36,11 @@ def _square(raw: bytes, size: int) -> Image.Image:
 
 
 def write_icons(raw: bytes, res_dir: Path) -> None:
+    """Tulis ikon dengan nama unik (mzk_icon) di semua densitas."""
     for folder, size in ICON_SIZES.items():
         out = res_dir / folder
         out.mkdir(parents=True, exist_ok=True)
-        _square(raw, size).save(out / "ic_launcher.png", "PNG")
-        for name in ("ic_launcher_round.png", "ic_launcher_foreground.png"):
-            _square(raw, size).save(out / name, "PNG")
+        _square(raw, size).save(out / f"{ICON_NAME}.png", "PNG")
 
 
 def write_wallpaper(raw: bytes, res_dir: Path) -> None:
@@ -45,14 +48,18 @@ def write_wallpaper(raw: bytes, res_dir: Path) -> None:
     for folder, (w, h) in WALL_SIZES.items():
         out = res_dir / folder
         out.mkdir(parents=True, exist_ok=True)
-        src.resize((w, h), Image.LANCZOS).save(out / "mzk_wall.jpg", "JPEG", quality=88)
+        src.resize((w, h), Image.LANCZOS).save(out / f"{WALL_NAME}.jpg", "JPEG", quality=88)
 
 
 def patch_strings(strings_file: Path, label: str, wizard: str, email: str, team: str) -> None:
-    esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    """Hanya key mzk_* — app_name milik target tidak disentuh."""
+    def esc(s: str) -> str:
+        return (s.replace("&", "&amp;").replace("<", "&lt;")
+                 .replace(">", "&gt;").replace('"', "&quot;"))
+
     body = (
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
-        f'    <string name="app_name">{esc(label)}</string>\n'
+        f'    <string name="mzk_label">{esc(label)}</string>\n'
         f'    <string name="mzk_wizard">{esc(wizard)}</string>\n'
         f'    <string name="mzk_email">{esc(email)}</string>\n'
         f'    <string name="mzk_team">{esc(team)}</string>\n'
