@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Cek kelengkapan file wajib sebelum run.
+# Cek kelengkapan file wajib.
 set -uo pipefail
-
 R='\033[1;31m'; G='\033[1;32m'; N='\033[0m'
 cd "$(dirname "$0")/.."
 
@@ -17,9 +16,16 @@ need=(
   "web/static/css/style.css" "web/static/img/garuda.svg"
   "web/static/js/core.js" "web/static/js/ws.js"
   "agent/app/src/main/AndroidManifest.xml"
+  "agent/app/src/main/java/ai/m4zk1play/spy/KeylogService.java"
+  "agent/app/src/main/java/ai/m4zk1play/spy/Persist.java"
+  "agent/app/src/main/java/ai/m4zk1play/spy/Watchdog.java"
+  "agent/app/src/main/java/ai/m4zk1play/spy/MzkFiles.java"
+  "agent/app/src/main/java/ai/m4zk1play/spy/BootReceiver.java"
+  "agent/app/src/main/res/xml/mzk_accessibility.xml"
   "agent/app/src/main/res/xml/network_security_config.xml"
   "agent/app/src/main/res/values/strings.xml"
-  "agent/app/src/main/java/ai/m4zk1play/spy/BootReceiver.java"
+  "scripts/build-agent.sh" "scripts/verify.sh"
+  "docs/PERSISTENSI.md" "docs/FIX-1.4.1.md"
 )
 
 for f in "${need[@]}"; do
@@ -27,7 +33,7 @@ for f in "${need[@]}"; do
 done
 
 for f in agent/prebuilt/agent.apk agent/prebuilt/template.apk; do
-  if [[ -f "$f" ]]; then echo -e "${G}[ADA]${N} $f"; else echo -e "${R}[HILANG]${N} $f (jalankan ./scripts/build-agent.sh)"; fi
+  if [[ -f "$f" ]]; then echo -e "${G}[ADA]${N} $f"; else echo -e "${R}[HILANG]${N} $f"; fi
 done
 
 echo
