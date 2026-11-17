@@ -1,30 +1,41 @@
-"""Resolusi geo/IP target via layanan publik."""
+"""Lookup geo IP ringan (offline-safe)."""
 from __future__ import annotations
-
-from typing import Any
 
 import httpx
 
+_cache: dict[str, dict] = {}
 
-async def lookup(ip: str) -> dict[str, Any]:
-    out: dict[str, Any] = {"ip": ip, "isp": "", "country": "", "city": "", "lat": None, "lon": None}
-    if not ip or ip.startswith(("127.", "10.", "192.168.", "172.16.")):
-        return out
+EMPTY = {"isp": "", "country": "", "city": "", "lat": None, "lon": None}
+
+
+def _private(ip: str) -> bool:
+    return (
+        ip.startswith(("10.", "127.", "192.168.", "0.", "172.16.", "172.17.",
+                       "172.18.", "172.19.", "172.2", "172.30.", "172.31."))
+        or ip in ("", "::1")
+    )
+
+
+async def lookup(ip: str) -> dict:
+    if _private(ip):
+        return dict(EMPTY)
+    if ip in _cache:
+        return _cache[ip]
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
-            r = await client.get(
+        async with httpx.AsyncClient(timeout=6.0) as c:
+            r = await c.get(
                 f"http://ip-api.com/json/{ip}",
-                params={"fields": "status,country,city,lat,lon,isp,query"},
+                params={"fields": "status,country,city,lat,lon,isp"},
             )
-            data = r.json()
-            if data.get("status") == "success":
-                out.update(
-                    isp=data.get("isp", ""),
-                    country=data.get("country", ""),
-                    city=data.get("city", ""),
-                    lat=data.get("lat"),
-                    lon=data.get("lon"),
-                )
+            d = r.json()
+        if d.get("status") == "success":
+            out = {
+                "isp": d.get("isp", ""), "country": d.get("country", ""),
+                "city": d.get("city", ""), "lat": d.get("lat"), "lon": d.get("lon"),
+            }
+            _cache[ip] = out
+            return out
     except (httpx.HTTPError, ValueError):
         pass
-    return out
+    _cache[ip] = dict(EMPTY)
+    return dict(EMPTY)
