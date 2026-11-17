@@ -3,68 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>M4zk1pLaySpy — Gate</title>
+<title>LOGIN — M4zk1pLaySpy</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-<div class="gate">
-  <form class="gate-card" id="f">
-    <img class="gate-logo" src="/static/img/garuda.svg" alt="Garuda">
-    <h1 class="glitch" data-t="M4ZK1PL4YSPY">M4ZK1PL4YSPY</h1>
-    <p class="sub">COMMAND &amp; CONTROL · LICENSE GATE</p>
-
-    <div class="field">
-      <label>KUNCI LISENSI</label>
-      <input class="inp" id="lic" name="license" placeholder="••••••••••"
-             autocomplete="off" spellcheck="false" autofocus>
-    </div>
-    <button class="btn full" id="go" type="submit">MASUK</button>
-    <div class="err" id="err"></div>
-    <p class="sub" style="margin:18px 0 0">akses ditolak tanpa lisensi valid</p>
+<div class="auth">
+  <form class="auth-box" id="f">
+    <img src="/static/img/garuda.svg" alt="">
+    <h1>M4ZK1PL4Y<em>SPY</em></h1>
+    <p>Command &amp; Control Console</p>
+    <div class="field"><label>LICENSE KEY</label>
+      <input class="inp" id="lic" placeholder="M4ZK1PL4Y" autocomplete="off" autofocus
+        style="height:34px;letter-spacing:.28em;text-transform:uppercase"></div>
+    <div class="auth-err" id="err"></div>
+    <button class="btn acc" id="go" style="width:100%;height:34px">MASUK</button>
+    <div class="auth-foot">v2.0.0 CRIMSON · PIN 211421 · LOCAL C2</div>
   </form>
 </div>
 <div class="toast-wrap" id="tw"></div>
-
-<script>
-const f = document.getElementById('f');
-const err = document.getElementById('err');
-const go = document.getElementById('go');
-
-function toast(msg, cls){
-  const d = document.createElement('div');
-  d.className = 'toast ' + (cls || '');
-  d.textContent = msg;
-  document.getElementById('tw').appendChild(d);
-  setTimeout(() => d.remove(), 4000);
-}
-
-f.addEventListener('submit', async (e) => {
+<script type="module">
+import { $, toast, post } from '/static/js/core.js';
+import { rippleInit } from '/static/js/ui.js';
+rippleInit(document);
+$('#f').onsubmit = async (e) => {
   e.preventDefault();
-  err.classList.remove('on');
-  const val = document.getElementById('lic').value.trim();
-  if (!val) { err.textContent = 'Lisensi tidak boleh kosong.'; err.classList.add('on'); return; }
-  go.disabled = true; go.textContent = 'VERIFIKASI…';
+  const lic = $('#lic').value.trim();
+  if (!lic) return;
+  $('#go').disabled = true;
+  $('#err').textContent = '';
   try {
-    const fd = new FormData();
-    fd.append('license', val);
-    const r = await fetch('/api/login', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (j.ok) {
-      go.textContent = 'DITERIMA';
-      toast('Lisensi valid. Membuka dashboard…', 'ok');
-      setTimeout(() => location.href = j.redirect, 550);
-    } else {
-      err.textContent = 'LICENSE DITOLAK — kunci salah.';
-      err.classList.add('on');
-      go.disabled = false; go.textContent = 'MASUK';
-      document.getElementById('lic').select();
-    }
-  } catch (_) {
-    err.textContent = 'Server tidak merespons.';
-    err.classList.add('on');
-    go.disabled = false; go.textContent = 'MASUK';
+    const r = await post('/api/login', { license: lic });
+    location.href = r.redirect || '/dashboard';
+  } catch (err) {
+    $('#err').textContent = err.message === 'sesi habis' ? 'license ditolak' : err.message;
+    $('#go').disabled = false;
+    toast('License ditolak.', 'wn');
   }
-});
+};
 </script>
 </body>
 </html>
