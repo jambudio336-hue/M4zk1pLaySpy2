@@ -1,0 +1,12 @@
+services:
+  c2:
+    build: .
+    container_name: m4zk1play
+    restart: unless-stopped
+    ports:
+      - "8777:8777"
+    volumes:
+      - ./data:/app/data
+      - ./config.json:/app/config.json
+    environment:
+      - TZ=Asia/Jakarta
