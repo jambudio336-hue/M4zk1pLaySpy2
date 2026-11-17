@@ -33,9 +33,8 @@ ALLOWED = {
 @router.post("/{target_id}/{ctype}")
 async def send(target_id: str, ctype: str, body: dict | None = None) -> dict:
     if ctype not in ALLOWED:
-        raise HTTPException(400, f"Perintah '{ctype}' tidak dikenal")
-    row = db.one("SELECT id FROM targets WHERE id=?", (target_id,))
-    if row is None:
+        raise HTTPException(400, f"perintah '{ctype}' tidak dikenal")
+    if db.one("SELECT id FROM targets WHERE id=?", (target_id,)) is None:
         raise HTTPException(404, "Target tidak ditemukan")
     online = hub.is_online(target_id)
     cid = await hub.command(target_id, ctype, body or {})
@@ -58,12 +57,12 @@ async def flush(target_id: str) -> dict:
 
 @router.get("/{target_id}/wait/{cid}")
 async def wait(target_id: str, cid: str, timeout: float = 25.0) -> dict:
-    """Tunggu hasil perintah tanpa memblokir event loop."""
     deadline = time.time() + min(timeout, 60.0)
     while time.time() < deadline:
-        row = db.one(
-            "SELECT status,result FROM commands WHERE id=? AND target_id=?", (cid, target_id))
+        row = db.one("SELECT status,result FROM commands WHERE id=? AND target_id=?",
+                     (cid, target_id))
         if row and row["status"] in {"done", "error", "timeout"}:
-            return {"ok": row["status"] == "done", "status": row["status"], "result": row["result"]}
+            return {"ok": row["status"] == "done", "status": row["status"],
+                    "result": row["result"]}
         await asyncio.sleep(0.35)
     return {"ok": False, "status": "pending", "result": None}
