@@ -33,6 +33,12 @@ DEFAULTS: dict[str, Any] = {
     "theme_accent": "#ff2d55",
     "require_license": True,
     "max_upload_mb": 300,
+    "hide_panel": False,
+    "tunnel_auto": False,
+    "stealth": True,
+    "server_banner": "nginx",
+    "login_max_try": 6,
+    "login_window": 300,
 }
 
 _cache: dict[str, Any] | None = None
@@ -44,23 +50,19 @@ def ensure_dirs() -> None:
 
 
 def load() -> dict[str, Any]:
-    """Muat config; buat dari default bila belum ada."""
     global _cache
     if _cache is not None:
         return _cache
-
     ensure_dirs()
     if not CONFIG_PATH.exists():
         data = dict(DEFAULTS)
         data["agent_token_secret"] = secrets.token_urlsafe(48)
         data["keystore_pass"] = secrets.token_urlsafe(24)
         CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
     try:
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         raw = {}
-
     data = dict(DEFAULTS)
     data.update({k: v for k, v in raw.items() if k in DEFAULTS})
     if not data.get("agent_token_secret"):
@@ -69,7 +71,6 @@ def load() -> dict[str, Any]:
     if not data.get("keystore_pass"):
         data["keystore_pass"] = secrets.token_urlsafe(24)
         save(data)
-
     _cache = data
     return data
 
