@@ -3,43 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LOGIN — M4zk1pLaySpy</title>
+<meta name="robots" content="noindex,nofollow">
+<title>Sign in</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <div class="auth">
-  <form class="auth-box" id="f">
+  <form class="auth-box" id="f" autocomplete="off">
     <img src="/static/img/garuda.svg" alt="">
     <h1>M4ZK1PL4Y<em>SPY</em></h1>
     <p>Command &amp; Control Console</p>
     <div class="field"><label>LICENSE KEY</label>
-      <input class="inp" id="lic" placeholder="M4ZK1PL4Y" autocomplete="off" autofocus
-        style="height:34px;letter-spacing:.28em;text-transform:uppercase"></div>
+      <input class="inp" id="lic" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+        style="height:33px;letter-spacing:.28em;text-transform:uppercase" autofocus></div>
     <div class="auth-err" id="err"></div>
-    <button class="btn acc" id="go" style="width:100%;height:34px">MASUK</button>
-    <div class="auth-foot">v2.0.0 CRIMSON · PIN 211421 · LOCAL C2</div>
+    <button class="btn acc" id="go" style="width:100%;height:33px">MASUK</button>
+    <div class="auth-foot">v2.1.0 &middot; PIN 211421</div>
   </form>
 </div>
 <div class="toast-wrap" id="tw"></div>
 <script type="module">
-import { $, toast, post } from '/static/js/core.js';
+import { $, toast } from '/static/js/core.js';
 import { rippleInit } from '/static/js/ui.js';
 rippleInit(document);
-$('#f').onsubmit = async (e) => {
+$('#f').addEventListener('submit', async (e) => {
   e.preventDefault();
   const lic = $('#lic').value.trim();
   if (!lic) return;
   $('#go').disabled = true;
   $('#err').textContent = '';
   try {
-    const r = await post('/api/login', { license: lic });
-    location.href = r.redirect || '/dashboard';
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ license: lic }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.message || 'license ditolak');
+    location.href = d.redirect || '/dashboard';
   } catch (err) {
-    $('#err').textContent = err.message === 'sesi habis' ? 'license ditolak' : err.message;
+    $('#err').textContent = err.message;
     $('#go').disabled = false;
-    toast('License ditolak.', 'wn');
+    toast(err.message, 'wn');
   }
-};
+});
 </script>
 </body>
 </html>
