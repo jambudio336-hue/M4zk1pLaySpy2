@@ -1,5 +1,5 @@
 /* hub realtime operator */
-import { toast } from './core.js';
+import { toast, jitter } from './core.js';
 
 const handlers = new Map();
 export function on(type, fn) {
@@ -20,32 +20,33 @@ function emit(msg) {
 export function connect() {
   if (sock && sock.readyState <= 1) return sock;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  sock = new WebSocket(`${proto}://${location.host}/ws/operator`);
+  sock = new WebSocket(proto + '://' + location.host + '/ws/operator');
 
   sock.onopen = () => {
     tries = 0;
     clearInterval(beat);
     beat = setInterval(() => {
       if (sock.readyState === 1) sock.send(JSON.stringify({ t: 'ping' }));
-    }, 20000);
+    }, jitter(19000, 4000));
     emit({ t: 'open' });
   };
   sock.onmessage = (ev) => {
-    let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
     emit(msg);
   };
   sock.onclose = () => {
     clearInterval(beat);
     emit({ t: 'close' });
     tries++;
-    if (tries <= 8) setTimeout(connect, Math.min(9000, 600 * tries));
+    if (tries <= 8) setTimeout(connect, Math.min(9000, jitter(600, 900)));
     else toast('Koneksi C2 terputus.', 'wn');
   };
   sock.onerror = () => { try { sock.close(); } catch {} };
   return sock;
 }
 
-export const ready = () => sock && sock.readyState === 1;
+export const ready = () => !!sock && sock.readyState === 1;
 
 export function send(type, target, args) {
   if (!ready()) { toast('Realtime belum tersambung.', 'wn'); return false; }
