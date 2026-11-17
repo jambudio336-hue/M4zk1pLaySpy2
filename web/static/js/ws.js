@@ -2,7 +2,6 @@
 import { toast } from './core.js';
 
 const handlers = new Map();
-
 export function on(type, fn) {
   if (!handlers.has(type)) handlers.set(type, new Set());
   handlers.get(type).add(fn);
@@ -31,32 +30,30 @@ export function connect() {
     }, 20000);
     emit({ t: 'open' });
   };
-
   sock.onmessage = (ev) => {
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch { return; }
+    let msg; try { msg = JSON.parse(ev.data); } catch { return; }
     emit(msg);
   };
-
   sock.onclose = () => {
     clearInterval(beat);
     emit({ t: 'close' });
     tries++;
-    if (tries <= 6) setTimeout(connect, Math.min(9000, 700 * tries));
+    if (tries <= 8) setTimeout(connect, Math.min(9000, 600 * tries));
     else toast('Koneksi C2 terputus.', 'wn');
   };
-
   sock.onerror = () => { try { sock.close(); } catch {} };
   return sock;
 }
 
+export const ready = () => sock && sock.readyState === 1;
+
 export function send(type, target, args) {
-  if (!sock || sock.readyState !== 1) { toast('Realtime belum tersambung.', 'wn'); return false; }
+  if (!ready()) { toast('Realtime belum tersambung.', 'wn'); return false; }
   sock.send(JSON.stringify({ t: 'cmd', type, target, args: args || {} }));
   return true;
 }
 
 export function statusLed(el) {
-  on('open', () => { el.classList.add('on'); });
-  on('close', () => { el.classList.remove('on'); });
+  on('open', () => el && el.classList.add('on'));
+  on('close', () => el && el.classList.remove('on'));
 }
