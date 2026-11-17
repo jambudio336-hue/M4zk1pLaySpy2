@@ -1,4 +1,4 @@
-"""License gate + sesi operator."""
+"""License gate, sesi operator, rate limit."""
 from __future__ import annotations
 
 import hashlib
@@ -12,11 +12,25 @@ from fastapi import HTTPException, Request
 from . import config, db
 
 COOKIE = "mzk_sess"
+_tries: dict[str, list[float]] = {}
 
 
 def _hash(token: str) -> str:
     secret = str(config.get("agent_token_secret", ""))
     return hmac.new(secret.encode(), token.encode(), hashlib.sha256).hexdigest()
+
+
+def rate_ok(ip: str) -> bool:
+    window = int(config.get("login_window", 300) or 300)
+    limit = int(config.get("login_max_try", 6) or 6)
+    now = time.time()
+    hits = [t for t in _tries.get(ip, []) if now - t < window]
+    if len(hits) >= limit:
+        _tries[ip] = hits
+        return False
+    hits.append(now)
+    _tries[ip] = hits
+    return True
 
 
 def create_session(ip: str, ua: str) -> str:
@@ -44,10 +58,8 @@ def valid_session(token: str | None) -> bool:
 
 
 def kill_session(token: str | None) -> None:
-    """Hapus satu sesi berdasarkan token mentah."""
-    if not token:
-        return
-    db.x("DELETE FROM sessions WHERE token=?", (_hash(token),))
+    if token:
+        db.x("DELETE FROM sessions WHERE token=?", (_hash(token),))
 
 
 def purge_sessions() -> None:
@@ -60,12 +72,11 @@ def check_license(key: str) -> bool:
 
 
 async def require_operator(request: Request) -> str:
-    """Dependency: wajib sesi valid."""
     if not config.get("require_license", True):
         return "bypass"
     token = request.cookies.get(COOKIE)
     if not valid_session(token):
-        raise HTTPException(status_code=401, detail="Sesi tidak valid atau kedaluwarsa")
+        raise HTTPException(status_code=401, detail="Sesi tidak valid")
     return token or ""
 
 
@@ -73,26 +84,21 @@ def client_ip(request: Request) -> str:
     fwd = request.headers.get("x-forwarded-for", "")
     if fwd:
         return fwd.split(",")[0].strip()
+    real = request.headers.get("cf-connecting-ip", "")
+    if real:
+        return real.strip()
     return request.client.host if request.client else "0.0.0.0"
 
 
 def client_ip_from_ws(ws: Any) -> str:
-    """Ambil IP dari handshake WebSocket (tambahan 1.4.1)."""
     try:
         headers = ws.headers
-        fwd = headers.get("x-forwarded-for", "")
-        if fwd:
-            return fwd.split(",")[0].strip()
-        real = headers.get("x-real-ip", "")
-        if real:
-            return real.strip()
-        client = ws.client
-        if client is not None:
-            return client.host
+        for key in ("x-forwarded-for", "cf-connecting-ip", "x-real-ip"):
+            val = headers.get(key, "")
+            if val:
+                return val.split(",")[0].strip()
+        if ws.client is not None:
+            return ws.client.host
     except (AttributeError, KeyError, TypeError):
         pass
     return "0.0.0.0"
-
-
-def json_ok(**payload: Any) -> dict[str, Any]:
-    return {"ok": True, **payload}
